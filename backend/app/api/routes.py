@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -110,7 +111,7 @@ def get_progress(user_id: str, course_id: str) -> list[dict]:
 
 
 @router.get("/reminders/{user_id}/{course_id}", response_model=ReminderResponse)
-def get_reminders(user_id: str, course_id: str, day: date | None = None) -> ReminderResponse:
+def get_reminders(user_id: str, course_id: str, day: Optional[date] = None) -> ReminderResponse:
     plan = repository.get_plan(user_id=user_id, course_id=course_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found.")
