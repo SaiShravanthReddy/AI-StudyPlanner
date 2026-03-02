@@ -1,0 +1,143 @@
+import json
+import re
+from dataclasses import dataclass
+
+from openai import OpenAI
+
+from app.core.config import Settings
+
+
+@dataclass
+class TopicDraft:
+    title: str
+    description: str
+    difficulty: int
+    estimated_minutes: int
+    dependencies: list[str]
+
+
+class GPTTopicExtractor:
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self._client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+
+    def extract_topics(self, syllabus_text: str, course_title: str) -> list[TopicDraft]:
+        if not self._client:
+            return self._fallback_topics(syllabus_text)
+        try:
+            return self._extract_with_gpt(syllabus_text, course_title)
+        except Exception:
+            return self._fallback_topics(syllabus_text)
+
+    def _extract_with_gpt(self, syllabus_text: str, course_title: str) -> list[TopicDraft]:
+        system_prompt = (
+            "You are an academic planning assistant. Extract the syllabus into an ordered topic list. "
+            "Return strict JSON only with shape: "
+            '{"topics":[{"title":"", "description":"", "difficulty":1-5, "estimated_minutes":30-240, "dependencies":["topic title"]}]}. '
+            "Use concise topic titles, realistic dependencies, and no markdown."
+        )
+        user_prompt = (
+            f"Course title: {course_title}\n\n"
+            "Syllabus text:\n"
+            f"{syllabus_text}\n\n"
+            "Return 8-20 topics unless the syllabus clearly requires fewer."
+        )
+        response = self._client.responses.create(
+            model=self.settings.openai_model,
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.2,
+        )
+        payload = self._coerce_json(response.output_text or "")
+        topics = payload.get("topics", [])
+        parsed = []
+        for raw in topics:
+            title = str(raw.get("title", "")).strip()
+            if not title:
+                continue
+            parsed.append(
+                TopicDraft(
+                    title=title,
+                    description=str(raw.get("description", "")).strip(),
+                    difficulty=self._clamp_int(raw.get("difficulty", 3), 1, 5, 3),
+                    estimated_minutes=self._clamp_int(raw.get("estimated_minutes", 60), 30, 360, 60),
+                    dependencies=[str(dep).strip() for dep in raw.get("dependencies", []) if str(dep).strip()],
+                )
+            )
+        if not parsed:
+            return self._fallback_topics(syllabus_text)
+        return parsed
+
+    def _coerce_json(self, content: str) -> dict:
+        content = content.strip()
+        if not content:
+            return {}
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", content, flags=re.DOTALL)
+            if not match:
+                return {}
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                return {}
+
+    def _fallback_topics(self, syllabus_text: str) -> list[TopicDraft]:
+        lines = []
+        for raw in syllabus_text.splitlines():
+            stripped = raw.strip(" -*\t")
+            if 15 <= len(stripped) <= 140:
+                lines.append(stripped)
+        if not lines:
+            fragments = [chunk.strip() for chunk in re.split(r"[.;\n]+", syllabus_text) if chunk.strip()]
+            lines = [x for x in fragments if 15 <= len(x) <= 140]
+        lines = lines[:12]
+        topics = []
+        for idx, line in enumerate(lines):
+            difficulty = 2 + min(3, idx // 3)
+            topics.append(
+                TopicDraft(
+                    title=self._titleize(line, idx),
+                    description=line,
+                    difficulty=difficulty,
+                    estimated_minutes=45 + difficulty * 20,
+                    dependencies=[topics[idx - 1].title] if idx > 0 else [],
+                )
+            )
+        if topics:
+            return topics
+        return [
+            TopicDraft(
+                title="Course Foundations",
+                description="Initial overview and foundational concepts.",
+                difficulty=2,
+                estimated_minutes=60,
+                dependencies=[],
+            ),
+            TopicDraft(
+                title="Core Techniques",
+                description="Primary methods and practical problem-solving patterns.",
+                difficulty=3,
+                estimated_minutes=90,
+                dependencies=["Course Foundations"],
+            ),
+        ]
+
+    def _titleize(self, raw: str, idx: int) -> str:
+        cleaned = re.sub(r"^[0-9\W_]+", "", raw).strip()
+        if not cleaned:
+            return f"Topic {idx + 1}"
+        words = cleaned.split()
+        title = " ".join(words[:8]).strip()
+        return title if len(title) >= 5 else f"Topic {idx + 1}"
+
+    def _clamp_int(self, value: object, low: int, high: int, default: int) -> int:
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return default
+        return max(low, min(high, number))
+
