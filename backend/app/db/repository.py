@@ -23,14 +23,15 @@ else:
 class StudyRepository:
     def __init__(self, supabase_client: Optional[Client]):
         self.supabase = supabase_client
-        self._memory_courses: dict[str, dict] = {}
-        self._memory_graphs: dict[str, TopicGraphResponse] = {}
+        self._memory_courses: dict[tuple[str, str], dict] = {}
+        self._memory_graphs: dict[tuple[str, str], TopicGraphResponse] = {}
         self._memory_plans: dict[tuple[str, str], StudyPlanResponse] = {}
         self._memory_progress: dict[tuple[str, str], list[dict]] = defaultdict(list)
 
     def save_course(self, course_payload: dict) -> None:
+        user_id = str(course_payload["user_id"])
         course_id = str(course_payload["course_id"])
-        self._memory_courses[course_id] = deepcopy(course_payload)
+        self._memory_courses[(user_id, course_id)] = deepcopy(course_payload)
         if not self.supabase:
             return
         try:
@@ -38,14 +39,15 @@ class StudyRepository:
         except Exception:
             pass
 
-    def save_topic_graph(self, course_id: str, graph: TopicGraphResponse) -> None:
-        self._memory_graphs[course_id] = graph
+    def save_topic_graph(self, user_id: str, course_id: str, graph: TopicGraphResponse) -> None:
+        self._memory_graphs[(user_id, course_id)] = graph
         if not self.supabase:
             return
         topic_rows = []
         for topic in graph.topics:
             topic_rows.append(
                 {
+                    "user_id": user_id,
                     "course_id": course_id,
                     "topic_id": topic.id,
                     "title": topic.title,
@@ -60,6 +62,7 @@ class StudyRepository:
         for edge in graph.edges:
             edge_rows.append(
                 {
+                    "user_id": user_id,
                     "course_id": course_id,
                     "source": edge.source,
                     "target": edge.target,
@@ -140,15 +143,31 @@ class StudyRepository:
         except Exception:
             return None
 
-    def get_graph(self, course_id: str) -> Optional[TopicGraphResponse]:
-        graph = self._memory_graphs.get(course_id)
+    def get_graph(self, user_id: str, course_id: str) -> Optional[TopicGraphResponse]:
+        graph = self._memory_graphs.get((user_id, course_id))
         if graph:
             return deepcopy(graph)
         if not self.supabase:
             return None
         try:
-            topic_rows = self.supabase.table("topics").select("*").eq("course_id", course_id).execute().data or []
-            edge_rows = self.supabase.table("topic_edges").select("*").eq("course_id", course_id).execute().data or []
+            topic_rows = (
+                self.supabase.table("topics")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("course_id", course_id)
+                .execute()
+                .data
+                or []
+            )
+            edge_rows = (
+                self.supabase.table("topic_edges")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("course_id", course_id)
+                .execute()
+                .data
+                or []
+            )
             if not topic_rows:
                 return None
             topics = [
@@ -173,7 +192,7 @@ class StudyRepository:
                 for row in edge_rows
             ]
             graph = TopicGraphResponse(course_id=course_id, topics=topics, edges=edges)
-            self._memory_graphs[course_id] = graph
+            self._memory_graphs[(user_id, course_id)] = graph
             return deepcopy(graph)
         except Exception:
             return None

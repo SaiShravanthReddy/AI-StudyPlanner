@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from app.db.repository import StudyRepository
-from app.schemas.planner import DailyPlanItem, StudyPlanResponse
+from app.schemas.planner import DailyPlanItem, StudyPlanResponse, TopicGraphResponse, TopicNode
 
 
 class _FakeExecute:
@@ -97,3 +97,17 @@ def test_save_plan_deletes_stale_rows_when_replan_is_empty():
     assert plan_table.deleted is True
     assert plan_table.filters == [("user_id", "u1"), ("course_id", "c1")]
     assert plan_table.inserted_rows is None
+
+
+def test_graph_storage_is_scoped_by_user_and_course():
+    repository = StudyRepository(None)
+    graph = TopicGraphResponse(
+        course_id="shared-course",
+        topics=[TopicNode(id="t1", title="Foundations")],
+        edges=[],
+    )
+
+    repository.save_topic_graph("u1", "shared-course", graph)
+
+    assert repository.get_graph("u1", "shared-course") is not None
+    assert repository.get_graph("u2", "shared-course") is None

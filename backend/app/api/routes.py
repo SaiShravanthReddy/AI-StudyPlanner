@@ -65,7 +65,7 @@ def ingest_syllabus(
             "daily_study_minutes": payload.daily_study_minutes,
         }
     )
-    repository.save_topic_graph(payload.course_id, graph)
+    repository.save_topic_graph(payload.user_id, payload.course_id, graph)
     repository.save_plan(plan)
     return IngestResponse(graph=graph, plan=plan)
 
@@ -77,7 +77,7 @@ def track_progress(
 ) -> dict:
     if payload.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
-    graph = repository.get_graph(payload.course_id)
+    graph = repository.get_graph(payload.user_id, payload.course_id)
     if graph is None:
         raise HTTPException(status_code=404, detail="Course topics not found.")
     repository.save_progress(payload)
@@ -91,7 +91,7 @@ def replan(
 ) -> StudyPlanResponse:
     if payload.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
-    graph = repository.get_graph(payload.course_id)
+    graph = repository.get_graph(payload.user_id, payload.course_id)
     if graph is None:
         raise HTTPException(status_code=404, detail="Course topics not found.")
     completed_topic_ids = repository.get_completed_topic_ids(payload.user_id, payload.course_id)
