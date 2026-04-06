@@ -92,7 +92,10 @@ class StudyRepository:
                 }
             )
         try:
-            self.supabase.table("study_plan_items").upsert(rows).execute()
+            plan_table = self.supabase.table("study_plan_items")
+            plan_table.delete().eq("user_id", plan.user_id).eq("course_id", plan.course_id).execute()
+            if rows:
+                plan_table.insert(rows).execute()
         except Exception:
             pass
 
