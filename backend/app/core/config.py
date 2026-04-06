@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
     sentence_model_name: str = "all-MiniLM-L6-v2"
     topic_similarity_threshold: float = 0.62
+    max_similarity_neighbors: int = 3
     default_planning_window_days: int = 14
     supabase_url: Optional[str] = None
     supabase_service_key: Optional[str] = None

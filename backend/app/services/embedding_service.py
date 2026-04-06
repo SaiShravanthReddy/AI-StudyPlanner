@@ -13,10 +13,12 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
+    _shared_models: dict[str, SentenceTransformer] = {}
+    _failed_models: set[str] = set()
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self._model: Optional[SentenceTransformer] = None
-        self._model_error = False
 
     def encode(self, texts: list[str]) -> np.ndarray:
         if not texts:
@@ -35,14 +37,19 @@ class EmbeddingService:
         return np.clip(np.matmul(safe, safe.T), -1.0, 1.0)
 
     def _get_model(self) -> Optional[SentenceTransformer]:
-        if self._model_error:
+        if self.settings.sentence_model_name in self._failed_models:
             return None
         if self._model is None:
+            cached = self._shared_models.get(self.settings.sentence_model_name)
+            if cached is not None:
+                self._model = cached
+                return self._model
             try:
                 self._model = SentenceTransformer(self.settings.sentence_model_name)
+                self._shared_models[self.settings.sentence_model_name] = self._model
             except Exception:
                 logger.exception("Falling back to hashed embeddings", extra={"model_name": self.settings.sentence_model_name})
-                self._model_error = True
+                self._failed_models.add(self.settings.sentence_model_name)
                 return None
         return self._model
 
