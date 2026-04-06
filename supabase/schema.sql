@@ -17,8 +17,6 @@ create table if not exists public.topics (
   description text,
   difficulty integer not null default 3,
   estimated_minutes integer not null default 60,
-  dependencies jsonb not null default '[]'::jsonb,
-  similarity_links jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now(),
   foreign key (user_id, course_id) references public.courses(user_id, course_id) on delete cascade,
   primary key (user_id, course_id, topic_id)
@@ -64,3 +62,15 @@ create table if not exists public.progress_events (
 
 create index if not exists idx_progress_lookup
   on public.progress_events (user_id, course_id, topic_id, date);
+
+create index if not exists idx_course_lookup
+  on public.courses (user_id, course_id);
+
+create index if not exists idx_topics_lookup
+  on public.topics (user_id, course_id, topic_id);
+
+create index if not exists idx_topic_edges_lookup
+  on public.topic_edges (user_id, course_id, edge_type);
+
+create index if not exists idx_plan_lookup
+  on public.study_plan_items (user_id, course_id, date);

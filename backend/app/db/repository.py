@@ -62,8 +62,6 @@ class StudyRepository:
                     "description": topic.description,
                     "difficulty": topic.difficulty,
                     "estimated_minutes": topic.estimated_minutes,
-                    "dependencies": topic.dependencies,
-                    "similarity_links": topic.similarity_links,
                 }
             )
         edge_rows = []
@@ -181,6 +179,17 @@ class StudyRepository:
             )
             if not topic_rows:
                 return None
+            dependency_map: dict[str, list[str]] = defaultdict(list)
+            similarity_map: dict[str, list[str]] = defaultdict(list)
+            for row in edge_rows:
+                source = str(row["source"])
+                target = str(row["target"])
+                edge_type = str(row.get("edge_type", "dependency"))
+                if edge_type == "dependency":
+                    dependency_map[target].append(source)
+                elif edge_type == "similarity":
+                    similarity_map[source].append(target)
+                    similarity_map[target].append(source)
             topics = [
                 TopicNode(
                     id=str(row["topic_id"]),
@@ -188,8 +197,8 @@ class StudyRepository:
                     description=str(row.get("description", "")),
                     difficulty=int(row.get("difficulty", 3)),
                     estimated_minutes=int(row.get("estimated_minutes", 60)),
-                    dependencies=[str(dep) for dep in (row.get("dependencies") or [])],
-                    similarity_links=[str(link) for link in (row.get("similarity_links") or [])],
+                    dependencies=sorted(set(dependency_map.get(str(row["topic_id"]), []))),
+                    similarity_links=sorted(set(similarity_map.get(str(row["topic_id"]), []))),
                 )
                 for row in topic_rows
             ]

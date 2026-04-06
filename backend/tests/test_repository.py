@@ -42,6 +42,41 @@ class _FakeSupabase:
         return self.tables[name]
 
 
+class _FakeReadResponse:
+    def __init__(self, data):
+        self.data = data
+
+
+class _FakeReadTable:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def select(self, _fields):
+        return self
+
+    def eq(self, _field, _value):
+        return self
+
+    def order(self, _field):
+        return self
+
+    def execute(self):
+        return _FakeReadResponse(self.rows)
+
+
+class _FakeReadSupabase:
+    def __init__(self, topic_rows, edge_rows):
+        self.topic_rows = topic_rows
+        self.edge_rows = edge_rows
+
+    def table(self, name):
+        if name == "topics":
+            return _FakeReadTable(self.topic_rows)
+        if name == "topic_edges":
+            return _FakeReadTable(self.edge_rows)
+        raise AssertionError(f"Unexpected table: {name}")
+
+
 def _build_plan(items):
     return StudyPlanResponse(
         user_id="u1",
@@ -111,3 +146,38 @@ def test_graph_storage_is_scoped_by_user_and_course():
 
     assert repository.get_graph("u1", "shared-course") is not None
     assert repository.get_graph("u2", "shared-course") is None
+
+
+def test_get_graph_rebuilds_relationships_from_edge_rows():
+    repository = StudyRepository(
+        _FakeReadSupabase(
+            topic_rows=[
+                {
+                    "topic_id": "t1",
+                    "title": "Foundations",
+                    "description": "",
+                    "difficulty": 2,
+                    "estimated_minutes": 60,
+                },
+                {
+                    "topic_id": "t2",
+                    "title": "Algorithms",
+                    "description": "",
+                    "difficulty": 3,
+                    "estimated_minutes": 90,
+                },
+            ],
+            edge_rows=[
+                {"source": "t1", "target": "t2", "edge_type": "dependency", "weight": 1.0},
+                {"source": "t1", "target": "t2", "edge_type": "similarity", "weight": 0.9},
+            ],
+        )
+    )
+
+    graph = repository.get_graph("u1", "c1")
+
+    assert graph is not None
+    topic_by_id = {topic.id: topic for topic in graph.topics}
+    assert topic_by_id["t2"].dependencies == ["t1"]
+    assert topic_by_id["t1"].similarity_links == ["t2"]
+    assert topic_by_id["t2"].similarity_links == ["t1"]
