@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - backend/.env
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://backend:8000/api/v1
+      VITE_AUTH_TOKEN: ${VITE_AUTH_TOKEN:-dev-token-student-001}
+      VITE_USER_ID: ${VITE_USER_ID:-student-001}
+      VITE_APP_TIMEZONE: ${VITE_APP_TIMEZONE:-America/New_York}
+    ports:
+      - "4173:4173"
+    depends_on:
+      - backend

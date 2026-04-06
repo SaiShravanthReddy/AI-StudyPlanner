@@ -8,6 +8,26 @@ AI-driven study planning system that transforms course syllabi into topic graphs
 - Storage: Supabase (with in-memory fallback for local dev)
 - Frontend: React (Vite)
 
+## Architecture
+```text
+React dashboard
+  -> Axios API client
+  -> FastAPI routes
+  -> Services
+     -> GPT topic extraction
+     -> Embedding similarity + topic graph generation
+     -> Study plan generation
+     -> Reminder generation
+  -> Repository
+     -> Supabase persistence
+     -> In-memory fallback for local development
+```
+
+Current deployment shape:
+- `backend/` ships as a FastAPI container on port `8000`
+- `frontend/` ships as a Vite preview container on port `4173`
+- `.github/workflows/ci.yml` runs backend tests and frontend build on pushes and PRs
+
 ## Features
 - Syllabus ingestion and topic extraction with GPT
 - Topic graph creation using dependency edges + embedding similarity edges
@@ -65,6 +85,20 @@ Development auth defaults:
 - Frontend `.env`: `VITE_USER_ID=student-001`
 - Frontend `.env`: `VITE_AUTH_TOKEN=dev-token-student-001`
 - Frontend `.env`: `VITE_APP_TIMEZONE=America/New_York`
+
+## Docker
+```bash
+docker compose up --build
+```
+
+Container endpoints:
+- Frontend: `http://localhost:4173`
+- Backend: `http://localhost:8000`
+
+## CI
+- GitHub Actions workflow: `.github/workflows/ci.yml`
+- Backend job: installs Python dependencies and runs `pytest`
+- Frontend job: installs Node dependencies and runs `npm run build`
 
 ## API Endpoints
 - `GET /api/v1/health`
