@@ -30,7 +30,7 @@ topic_extractor = GPTTopicExtractor(settings)
 embedding_service = EmbeddingService(settings)
 topic_graph_service = TopicGraphService(settings, embedding_service)
 planner_service = PlannerService(settings)
-reminder_service = ReminderService()
+reminder_service = ReminderService(settings)
 
 
 def _storage_error(detail: str) -> HTTPException:

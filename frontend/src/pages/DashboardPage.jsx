@@ -6,6 +6,7 @@ import ProgressTracker from "../components/ProgressTracker";
 import ReminderPanel from "../components/ReminderPanel";
 import StudyPlanTable from "../components/StudyPlanTable";
 import TopicGraphView from "../components/TopicGraphView";
+import { todayIsoDate } from "../utils/date";
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
@@ -50,7 +51,7 @@ export default function DashboardPage() {
       const replanned = await replan({
         user_id: payload.user_id,
         course_id: payload.course_id,
-        from_date: new Date().toISOString().slice(0, 10),
+        from_date: todayIsoDate(),
         daily_study_minutes: activeCourse?.daily_study_minutes || 120
       });
       setPlan(replanned);
@@ -81,4 +82,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

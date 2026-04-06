@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { todayIsoDate } from "../utils/date";
+
 const templateText = `Week 1: Introduction, scope, and learning outcomes.
 Week 2: Core theory, notation, and foundational proofs.
 Week 3: Algorithm design patterns and complexity.
@@ -16,7 +18,7 @@ export default function CourseForm({ onSubmit, loading }) {
     course_id: "cs-grad-601",
     course_title: "Advanced Computer Science Seminar",
     syllabus_text: templateText,
-    start_date: new Date().toISOString().slice(0, 10),
+    start_date: todayIsoDate(),
     end_date: "",
     daily_study_minutes: 120
   });

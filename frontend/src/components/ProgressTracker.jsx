@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 
+import { todayIsoDate } from "../utils/date";
+
 export default function ProgressTracker({ plan, userId, courseId, onProgress }) {
   const [selectedTopic, setSelectedTopic] = useState("");
   const [minutesSpent, setMinutesSpent] = useState(60);
@@ -32,7 +34,7 @@ export default function ProgressTracker({ plan, userId, courseId, onProgress }) 
       user_id: userId,
       course_id: courseId,
       topic_id: topicId,
-      date: new Date().toISOString().slice(0, 10),
+      date: todayIsoDate(),
       minutes_spent: Number(minutesSpent),
       completed
     });
@@ -76,4 +78,3 @@ export default function ProgressTracker({ plan, userId, courseId, onProgress }) 
     </form>
   );
 }
-

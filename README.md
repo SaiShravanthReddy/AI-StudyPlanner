@@ -64,6 +64,7 @@ Development auth defaults:
 - Backend `.env`: `AUTH_USER_TOKENS=student-001:dev-token-student-001`
 - Frontend `.env`: `VITE_USER_ID=student-001`
 - Frontend `.env`: `VITE_AUTH_TOKEN=dev-token-student-001`
+- Frontend `.env`: `VITE_APP_TIMEZONE=America/New_York`
 
 ## API Endpoints
 - `GET /api/v1/health`
