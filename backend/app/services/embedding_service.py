@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from typing import Optional
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
@@ -38,6 +41,7 @@ class EmbeddingService:
             try:
                 self._model = SentenceTransformer(self.settings.sentence_model_name)
             except Exception:
+                logger.exception("Falling back to hashed embeddings", extra={"model_name": self.settings.sentence_model_name})
                 self._model_error = True
                 return None
         return self._model

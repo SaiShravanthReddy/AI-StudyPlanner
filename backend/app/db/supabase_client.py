@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional, TYPE_CHECKING
 
 from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from supabase import Client
@@ -18,4 +21,5 @@ def build_supabase_client(settings: Settings) -> Optional[Client]:
 
         return create_client(settings.supabase_url, settings.supabase_service_key)
     except Exception:
+        logger.exception("Failed to initialize Supabase client")
         return None

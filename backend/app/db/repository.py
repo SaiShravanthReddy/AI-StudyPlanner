@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from copy import deepcopy
 from datetime import date, datetime
@@ -19,6 +20,12 @@ if TYPE_CHECKING:
 else:
     Client = Any
 
+logger = logging.getLogger(__name__)
+
+
+class RepositoryError(RuntimeError):
+    pass
+
 
 class StudyRepository:
     def __init__(self, supabase_client: Optional[Client]):
@@ -36,8 +43,9 @@ class StudyRepository:
             return
         try:
             self.supabase.table("courses").upsert(course_payload).execute()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception("Failed to persist course", extra={"user_id": user_id, "course_id": course_id})
+            raise RepositoryError("Failed to persist course.") from exc
 
     def save_topic_graph(self, user_id: str, course_id: str, graph: TopicGraphResponse) -> None:
         self._memory_graphs[(user_id, course_id)] = graph
@@ -73,8 +81,9 @@ class StudyRepository:
         try:
             self.supabase.table("topics").upsert(topic_rows).execute()
             self.supabase.table("topic_edges").upsert(edge_rows).execute()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception("Failed to persist topic graph", extra={"user_id": user_id, "course_id": course_id})
+            raise RepositoryError("Failed to persist topic graph.") from exc
 
     def save_plan(self, plan: StudyPlanResponse) -> None:
         self._memory_plans[(plan.user_id, plan.course_id)] = plan
@@ -99,8 +108,9 @@ class StudyRepository:
             plan_table.delete().eq("user_id", plan.user_id).eq("course_id", plan.course_id).execute()
             if rows:
                 plan_table.insert(rows).execute()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception("Failed to persist study plan", extra={"user_id": plan.user_id, "course_id": plan.course_id})
+            raise RepositoryError("Failed to persist study plan.") from exc
 
     def get_plan(self, user_id: str, course_id: str) -> Optional[StudyPlanResponse]:
         plan = self._memory_plans.get((user_id, course_id))
@@ -140,8 +150,9 @@ class StudyRepository:
             )
             self._memory_plans[(user_id, course_id)] = plan
             return deepcopy(plan)
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.exception("Failed to load study plan", extra={"user_id": user_id, "course_id": course_id})
+            raise RepositoryError("Failed to load study plan.") from exc
 
     def get_graph(self, user_id: str, course_id: str) -> Optional[TopicGraphResponse]:
         graph = self._memory_graphs.get((user_id, course_id))
@@ -194,8 +205,9 @@ class StudyRepository:
             graph = TopicGraphResponse(course_id=course_id, topics=topics, edges=edges)
             self._memory_graphs[(user_id, course_id)] = graph
             return deepcopy(graph)
-        except Exception:
-            return None
+        except Exception as exc:
+            logger.exception("Failed to load topic graph", extra={"user_id": user_id, "course_id": course_id})
+            raise RepositoryError("Failed to load topic graph.") from exc
 
     def save_progress(self, update: ProgressUpdateRequest) -> None:
         row = {
@@ -211,8 +223,9 @@ class StudyRepository:
             return
         try:
             self.supabase.table("progress_events").insert(row).execute()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception("Failed to persist progress", extra={"user_id": update.user_id, "course_id": update.course_id})
+            raise RepositoryError("Failed to persist progress.") from exc
 
     def get_completed_topic_ids(self, user_id: str, course_id: str) -> set[str]:
         rows = self._memory_progress.get((user_id, course_id), [])
@@ -231,8 +244,9 @@ class StudyRepository:
             rows = response.data or []
             completed = {str(row["topic_id"]) for row in rows if row.get("completed")}
             return completed
-        except Exception:
-            return set()
+        except Exception as exc:
+            logger.exception("Failed to load completed topics", extra={"user_id": user_id, "course_id": course_id})
+            raise RepositoryError("Failed to load completed topics.") from exc
 
     def get_progress_rows(self, user_id: str, course_id: str) -> list[dict]:
         rows = self._memory_progress.get((user_id, course_id), [])
@@ -252,5 +266,6 @@ class StudyRepository:
             rows = response.data or []
             self._memory_progress[(user_id, course_id)] = deepcopy(rows)
             return rows
-        except Exception:
-            return []
+        except Exception as exc:
+            logger.exception("Failed to load progress rows", extra={"user_id": user_id, "course_id": course_id})
+            raise RepositoryError("Failed to load progress rows.") from exc

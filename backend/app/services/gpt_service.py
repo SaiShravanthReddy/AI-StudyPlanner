@@ -1,10 +1,13 @@
 import json
+import logging
 import re
 from dataclasses import dataclass
 
 from openai import OpenAI
 
 from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -27,6 +30,7 @@ class GPTTopicExtractor:
         try:
             return self._extract_with_gpt(syllabus_text, course_title)
         except Exception:
+            logger.exception("Falling back to heuristic topic extraction", extra={"course_title": course_title})
             return self._fallback_topics(syllabus_text)
 
     def _extract_with_gpt(self, syllabus_text: str, course_title: str) -> list[TopicDraft]:
@@ -140,4 +144,3 @@ class GPTTopicExtractor:
         except (TypeError, ValueError):
             return default
         return max(low, min(high, number))
-
