@@ -60,6 +60,11 @@ npm run dev
 
 Frontend URL: `http://localhost:5173`
 
+Development auth defaults:
+- Backend `.env`: `AUTH_USER_TOKENS=student-001:dev-token-student-001`
+- Frontend `.env`: `VITE_USER_ID=student-001`
+- Frontend `.env`: `VITE_AUTH_TOKEN=dev-token-student-001`
+
 ## API Endpoints
 - `GET /api/v1/health`
 - `POST /api/v1/syllabus/ingest`

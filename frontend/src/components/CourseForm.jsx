@@ -8,10 +8,11 @@ Week 5: Midterm prep and review.
 Week 6: Advanced topics and case studies.
 Week 7: Applied project work and implementation.
 Week 8: Final evaluation and synthesis.`;
+const defaultUserId = import.meta.env.VITE_USER_ID || "student-001";
 
 export default function CourseForm({ onSubmit, loading }) {
   const [form, setForm] = useState({
-    user_id: "student-001",
+    user_id: defaultUserId,
     course_id: "cs-grad-601",
     course_title: "Advanced Computer Science Seminar",
     syllabus_text: templateText,
@@ -90,4 +91,3 @@ export default function CourseForm({ onSubmit, loading }) {
     </form>
   );
 }
-

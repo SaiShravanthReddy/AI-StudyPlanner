@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.auth import AuthenticatedUser, get_current_user
 from app.core.config import get_settings
 from app.db.repository import StudyRepository
 from app.db.supabase_client import build_supabase_client
@@ -38,7 +39,12 @@ def healthcheck() -> dict:
 
 
 @router.post("/syllabus/ingest", response_model=IngestResponse)
-def ingest_syllabus(payload: SyllabusIngestRequest) -> IngestResponse:
+def ingest_syllabus(
+    payload: SyllabusIngestRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> IngestResponse:
+    if payload.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
     topic_drafts = topic_extractor.extract_topics(payload.syllabus_text, payload.course_title)
     graph = topic_graph_service.build_topic_graph(payload.course_id, topic_drafts)
     plan = planner_service.generate_plan(
@@ -65,7 +71,12 @@ def ingest_syllabus(payload: SyllabusIngestRequest) -> IngestResponse:
 
 
 @router.post("/progress", response_model=dict)
-def track_progress(payload: ProgressUpdateRequest) -> dict:
+def track_progress(
+    payload: ProgressUpdateRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> dict:
+    if payload.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
     graph = repository.get_graph(payload.course_id)
     if graph is None:
         raise HTTPException(status_code=404, detail="Course topics not found.")
@@ -74,7 +85,12 @@ def track_progress(payload: ProgressUpdateRequest) -> dict:
 
 
 @router.post("/plan/replan", response_model=StudyPlanResponse)
-def replan(payload: ReplanRequest) -> StudyPlanResponse:
+def replan(
+    payload: ReplanRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> StudyPlanResponse:
+    if payload.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
     graph = repository.get_graph(payload.course_id)
     if graph is None:
         raise HTTPException(status_code=404, detail="Course topics not found.")
@@ -98,7 +114,13 @@ def replan(payload: ReplanRequest) -> StudyPlanResponse:
 
 
 @router.get("/plan/{user_id}/{course_id}", response_model=StudyPlanResponse)
-def get_plan(user_id: str, course_id: str) -> StudyPlanResponse:
+def get_plan(
+    user_id: str,
+    course_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> StudyPlanResponse:
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
     plan = repository.get_plan(user_id=user_id, course_id=course_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found.")
@@ -106,12 +128,25 @@ def get_plan(user_id: str, course_id: str) -> StudyPlanResponse:
 
 
 @router.get("/progress/{user_id}/{course_id}", response_model=list[dict])
-def get_progress(user_id: str, course_id: str) -> list[dict]:
+def get_progress(
+    user_id: str,
+    course_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> list[dict]:
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
     return repository.get_progress_rows(user_id=user_id, course_id=course_id)
 
 
 @router.get("/reminders/{user_id}/{course_id}", response_model=ReminderResponse)
-def get_reminders(user_id: str, course_id: str, day: Optional[date] = None) -> ReminderResponse:
+def get_reminders(
+    user_id: str,
+    course_id: str,
+    day: Optional[date] = None,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> ReminderResponse:
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
     plan = repository.get_plan(user_id=user_id, course_id=course_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found.")

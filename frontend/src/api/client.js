@@ -1,10 +1,15 @@
 import axios from "axios";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+const authToken = import.meta.env.VITE_AUTH_TOKEN || "";
 
 const http = axios.create({
   baseURL
 });
+
+if (authToken) {
+  http.defaults.headers.common.Authorization = `Bearer ${authToken}`;
+}
 
 export async function ingestSyllabus(payload) {
   const { data } = await http.post("/syllabus/ingest", payload);
@@ -30,4 +35,3 @@ export async function fetchReminders(userId, courseId) {
   const { data } = await http.get(`/reminders/${encodeURIComponent(userId)}/${encodeURIComponent(courseId)}`);
   return data;
 }
-

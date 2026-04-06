@@ -9,6 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "AI-Powered Adaptive Study Planner"
     api_v1_prefix: str = "/api/v1"
+    auth_user_tokens: str = ""
     openai_api_key: Optional[str] = None
     openai_model: str = "gpt-4.1-mini"
     sentence_model_name: str = "all-MiniLM-L6-v2"
