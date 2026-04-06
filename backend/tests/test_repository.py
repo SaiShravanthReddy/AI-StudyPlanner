@@ -1,7 +1,9 @@
 from datetime import date, datetime
 
-from app.db.repository import StudyRepository
-from app.schemas.planner import DailyPlanItem, StudyPlanResponse, TopicGraphResponse, TopicNode
+import pytest
+
+from app.db.repository import RepositoryError, StudyRepository
+from app.schemas.planner import DailyPlanItem, ProgressUpdateRequest, StudyPlanResponse, TopicGraphResponse, TopicNode
 
 
 class _FakeExecute:
@@ -31,6 +33,10 @@ class _FakeTable:
         self.inserted_rows = rows
         return _FakeExecute(self)
 
+    def upsert(self, rows):
+        self.inserted_rows = rows
+        return _FakeExecute(self)
+
 
 class _FakeSupabase:
     def __init__(self):
@@ -40,6 +46,30 @@ class _FakeSupabase:
         if name not in self.tables:
             self.tables[name] = _FakeTable(name)
         return self.tables[name]
+
+
+class _FailingExecute:
+    def eq(self, _field, _value):
+        return self
+
+    def execute(self):
+        raise RuntimeError("db write failed")
+
+
+class _FailingTable:
+    def delete(self):
+        return _FailingExecute()
+
+    def insert(self, _rows):
+        return _FailingExecute()
+
+    def upsert(self, _rows):
+        return _FailingExecute()
+
+
+class _FailingSupabase:
+    def table(self, _name):
+        return _FailingTable()
 
 
 class _FakeReadResponse:
@@ -181,3 +211,41 @@ def test_get_graph_rebuilds_relationships_from_edge_rows():
     assert topic_by_id["t2"].dependencies == ["t1"]
     assert topic_by_id["t1"].similarity_links == ["t2"]
     assert topic_by_id["t2"].similarity_links == ["t1"]
+
+
+def test_save_plan_does_not_cache_state_when_database_write_fails():
+    repository = StudyRepository(_FailingSupabase())
+    plan = _build_plan(
+        [
+            DailyPlanItem(
+                date=date(2026, 3, 1),
+                topic_id="t1",
+                topic_title="Foundations",
+                planned_minutes=60,
+                status="completed",
+                rationale="Finish prerequisites.",
+            )
+        ]
+    )
+
+    with pytest.raises(RepositoryError):
+        repository.save_plan(plan)
+
+    assert ("u1", "c1") not in repository._memory_plans
+
+
+def test_save_progress_does_not_cache_state_when_database_write_fails():
+    repository = StudyRepository(_FailingSupabase())
+    update = ProgressUpdateRequest(
+        user_id="u1",
+        course_id="c1",
+        topic_id="t1",
+        date=date(2026, 3, 1),
+        minutes_spent=45,
+        completed=False,
+    )
+
+    with pytest.raises(RepositoryError):
+        repository.save_progress(update)
+
+    assert repository._memory_progress[("u1", "c1")] == []
