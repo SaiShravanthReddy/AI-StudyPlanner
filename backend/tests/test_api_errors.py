@@ -15,15 +15,19 @@ def _client_with_auth_tokens(monkeypatch):
 def test_plan_returns_503_when_repository_load_fails(monkeypatch):
     client = _client_with_auth_tokens(monkeypatch)
 
-    def _boom(*args, **kwargs):
-        raise RepositoryError("boom")
+    class _BrokenRepository:
+        def get_plan(self, *args, **kwargs):
+            raise RepositoryError("boom")
 
-    monkeypatch.setattr(routes.repository, "get_plan", _boom)
+    app.dependency_overrides[routes.get_repository] = lambda: _BrokenRepository()
 
-    response = client.get(
-        "/api/v1/plan/student-001/course-1",
-        headers={"Authorization": "Bearer test-token-1"},
-    )
+    try:
+        response = client.get(
+            "/api/v1/plan/student-001/course-1",
+            headers={"Authorization": "Bearer test-token-1"},
+        )
+    finally:
+        app.dependency_overrides.clear()
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Unable to load study plan."

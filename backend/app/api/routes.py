@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import AuthenticatedUser, get_current_user
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.db.repository import RepositoryError, StudyRepository
 from app.db.supabase_client import build_supabase_client
 from app.schemas.planner import (
@@ -24,13 +24,33 @@ from app.services.reminder_service import ReminderService
 from app.services.topic_graph_service import TopicGraphService
 
 router = APIRouter()
-settings = get_settings()
-repository = StudyRepository(build_supabase_client(settings))
-topic_extractor = GPTTopicExtractor(settings)
-embedding_service = EmbeddingService(settings)
-topic_graph_service = TopicGraphService(settings, embedding_service)
-planner_service = PlannerService(settings)
-reminder_service = ReminderService(settings)
+
+
+def get_repository(settings: Settings = Depends(get_settings)) -> StudyRepository:
+    return StudyRepository(build_supabase_client(settings))
+
+
+def get_topic_extractor(settings: Settings = Depends(get_settings)) -> GPTTopicExtractor:
+    return GPTTopicExtractor(settings)
+
+
+def get_embedding_service(settings: Settings = Depends(get_settings)) -> EmbeddingService:
+    return EmbeddingService(settings)
+
+
+def get_topic_graph_service(
+    settings: Settings = Depends(get_settings),
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+) -> TopicGraphService:
+    return TopicGraphService(settings, embedding_service)
+
+
+def get_planner_service(settings: Settings = Depends(get_settings)) -> PlannerService:
+    return PlannerService(settings)
+
+
+def get_reminder_service(settings: Settings = Depends(get_settings)) -> ReminderService:
+    return ReminderService(settings)
 
 
 def _storage_error(detail: str) -> HTTPException:
@@ -38,7 +58,7 @@ def _storage_error(detail: str) -> HTTPException:
 
 
 @router.get("/health")
-def healthcheck() -> dict:
+def healthcheck(settings: Settings = Depends(get_settings)) -> dict:
     return {"status": "ok", "service": settings.app_name}
 
 
@@ -46,6 +66,11 @@ def healthcheck() -> dict:
 def ingest_syllabus(
     payload: SyllabusIngestRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    repository: StudyRepository = Depends(get_repository),
+    topic_extractor: GPTTopicExtractor = Depends(get_topic_extractor),
+    topic_graph_service: TopicGraphService = Depends(get_topic_graph_service),
+    planner_service: PlannerService = Depends(get_planner_service),
 ) -> IngestResponse:
     if payload.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
@@ -81,6 +106,7 @@ def ingest_syllabus(
 def track_progress(
     payload: ProgressUpdateRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    repository: StudyRepository = Depends(get_repository),
 ) -> dict:
     if payload.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
@@ -101,6 +127,9 @@ def track_progress(
 def replan(
     payload: ReplanRequest,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+    repository: StudyRepository = Depends(get_repository),
+    planner_service: PlannerService = Depends(get_planner_service),
 ) -> StudyPlanResponse:
     if payload.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
@@ -137,6 +166,7 @@ def get_plan(
     user_id: str,
     course_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    repository: StudyRepository = Depends(get_repository),
 ) -> StudyPlanResponse:
     if user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
@@ -154,6 +184,7 @@ def get_progress(
     user_id: str,
     course_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    repository: StudyRepository = Depends(get_repository),
 ) -> list[dict]:
     if user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
@@ -169,6 +200,8 @@ def get_reminders(
     course_id: str,
     day: Optional[date] = None,
     current_user: AuthenticatedUser = Depends(get_current_user),
+    repository: StudyRepository = Depends(get_repository),
+    reminder_service: ReminderService = Depends(get_reminder_service),
 ) -> ReminderResponse:
     if user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
