@@ -3,7 +3,8 @@ import logging
 import re
 from dataclasses import dataclass
 
-from openai import OpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
 from app.core.config import Settings
 
@@ -22,10 +23,14 @@ class TopicDraft:
 class GPTTopicExtractor:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
+        self._llm = (
+            ChatOpenAI(model=settings.openai_model, temperature=0.2, api_key=settings.openai_api_key)
+            if settings.openai_api_key
+            else None
+        )
 
     def extract_topics(self, syllabus_text: str, course_title: str) -> list[TopicDraft]:
-        if not self._client:
+        if not self._llm:
             return self._fallback_topics(syllabus_text)
         try:
             return self._extract_with_gpt(syllabus_text, course_title)
@@ -46,15 +51,9 @@ class GPTTopicExtractor:
             f"{syllabus_text}\n\n"
             "Return 8-20 topics unless the syllabus clearly requires fewer."
         )
-        response = self._client.responses.create(
-            model=self.settings.openai_model,
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.2,
-        )
-        payload = self._coerce_json(response.output_text or "")
+        messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
+        response = self._llm.invoke(messages)
+        payload = self._coerce_json(response.content or "")
         topics = payload.get("topics", [])
         parsed = []
         for raw in topics:

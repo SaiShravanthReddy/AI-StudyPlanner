@@ -19,7 +19,9 @@ from app.schemas.planner import (
 )
 from app.services.embedding_service import EmbeddingService
 from app.services.gpt_service import GPTTopicExtractor
+from app.services.langgraph_workflow import build_ingest_workflow, build_replan_workflow
 from app.services.planner_service import PlannerService
+from app.services.rag_service import RAGService
 from app.services.reminder_service import ReminderService
 from app.services.topic_graph_service import TopicGraphService
 
@@ -49,6 +51,25 @@ def get_planner_service(settings: Settings = Depends(get_settings)) -> PlannerSe
     return PlannerService(settings)
 
 
+def get_rag_service(settings: Settings = Depends(get_settings)) -> RAGService:
+    return RAGService(settings)
+
+
+def get_ingest_workflow(
+    topic_extractor: GPTTopicExtractor = Depends(get_topic_extractor),
+    rag_service: RAGService = Depends(get_rag_service),
+    topic_graph_service: TopicGraphService = Depends(get_topic_graph_service),
+    planner_service: PlannerService = Depends(get_planner_service),
+):
+    return build_ingest_workflow(topic_extractor, rag_service, topic_graph_service, planner_service)
+
+
+def get_replan_workflow(
+    planner_service: PlannerService = Depends(get_planner_service),
+):
+    return build_replan_workflow(planner_service)
+
+
 def get_reminder_service(settings: Settings = Depends(get_settings)) -> ReminderService:
     return ReminderService(settings)
 
@@ -68,22 +89,26 @@ def ingest_syllabus(
     current_user: AuthenticatedUser = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
     repository: StudyRepository = Depends(get_repository),
-    topic_extractor: GPTTopicExtractor = Depends(get_topic_extractor),
-    topic_graph_service: TopicGraphService = Depends(get_topic_graph_service),
-    planner_service: PlannerService = Depends(get_planner_service),
+    workflow=Depends(get_ingest_workflow),
 ) -> IngestResponse:
     if payload.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
-    topic_drafts = topic_extractor.extract_topics(payload.syllabus_text, payload.course_title)
-    graph = topic_graph_service.build_topic_graph(payload.course_id, topic_drafts)
-    plan = planner_service.generate_plan(
-        user_id=payload.user_id,
-        course_id=payload.course_id,
-        topics=graph.topics,
-        start_date=payload.start_date,
-        end_date=payload.end_date,
-        daily_study_minutes=payload.daily_study_minutes,
-    )
+    result = workflow.invoke({
+        "user_id": payload.user_id,
+        "course_id": payload.course_id,
+        "course_title": payload.course_title,
+        "syllabus_text": payload.syllabus_text,
+        "start_date": payload.start_date,
+        "end_date": payload.end_date,
+        "daily_study_minutes": payload.daily_study_minutes,
+        "raw_topics": [],
+        "rag_index": None,
+        "enriched_topics": [],
+        "topic_graph": None,
+        "study_plan": None,
+    })
+    graph = result["topic_graph"]
+    plan = result["study_plan"]
     try:
         repository.save_course(
             {
@@ -129,7 +154,7 @@ def replan(
     current_user: AuthenticatedUser = Depends(get_current_user),
     settings: Settings = Depends(get_settings),
     repository: StudyRepository = Depends(get_repository),
-    planner_service: PlannerService = Depends(get_planner_service),
+    workflow=Depends(get_replan_workflow),
 ) -> StudyPlanResponse:
     if payload.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Forbidden for requested user.")
@@ -141,19 +166,19 @@ def replan(
         raise _storage_error("Unable to load plan data for replanning.")
     if graph is None:
         raise HTTPException(status_code=404, detail="Course topics not found.")
-    if existing_plan and existing_plan.items:
-        horizon_end = max(item.date for item in existing_plan.items)
-    else:
-        horizon_end = payload.from_date + timedelta(days=settings.default_planning_window_days - 1)
-    replanned = planner_service.generate_plan(
-        user_id=payload.user_id,
-        course_id=payload.course_id,
-        topics=graph.topics,
-        start_date=payload.from_date,
-        end_date=horizon_end,
-        daily_study_minutes=payload.daily_study_minutes,
-        completed_topic_ids=completed_topic_ids,
-    )
+    result = workflow.invoke({
+        "user_id": payload.user_id,
+        "course_id": payload.course_id,
+        "from_date": payload.from_date,
+        "daily_study_minutes": payload.daily_study_minutes,
+        "default_window_days": settings.default_planning_window_days,
+        "topic_graph": graph,
+        "completed_topic_ids": list(completed_topic_ids),
+        "existing_plan": existing_plan,
+        "horizon_end": None,
+        "study_plan": None,
+    })
+    replanned = result["study_plan"]
     try:
         repository.save_plan(replanned)
     except RepositoryError:
