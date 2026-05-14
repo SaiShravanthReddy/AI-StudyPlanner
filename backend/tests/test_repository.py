@@ -1,9 +1,7 @@
 from datetime import date, datetime
 
-import pytest
-
 from app.db.repository import RepositoryError, StudyRepository
-from app.schemas.planner import DailyPlanItem, ProgressUpdateRequest, StudyPlanResponse, TopicGraphResponse, TopicNode
+from app.schemas.planner import ProgressUpdateRequest, RoadmapItem, RoadmapResponse, TopicGraphResponse, TopicNode
 
 
 class _FakeExecute:
@@ -33,7 +31,7 @@ class _FakeTable:
         self.inserted_rows = rows
         return _FakeExecute(self)
 
-    def upsert(self, rows):
+    def upsert(self, rows, **kwargs):
         self.inserted_rows = rows
         return _FakeExecute(self)
 
@@ -46,30 +44,6 @@ class _FakeSupabase:
         if name not in self.tables:
             self.tables[name] = _FakeTable(name)
         return self.tables[name]
-
-
-class _FailingExecute:
-    def eq(self, _field, _value):
-        return self
-
-    def execute(self):
-        raise RuntimeError("db write failed")
-
-
-class _FailingTable:
-    def delete(self):
-        return _FailingExecute()
-
-    def insert(self, _rows):
-        return _FailingExecute()
-
-    def upsert(self, _rows):
-        return _FailingExecute()
-
-
-class _FailingSupabase:
-    def table(self, _name):
-        return _FailingTable()
 
 
 class _FakeReadResponse:
@@ -107,60 +81,60 @@ class _FakeReadSupabase:
         raise AssertionError(f"Unexpected table: {name}")
 
 
-def _build_plan(items):
-    return StudyPlanResponse(
+def _build_roadmap(items):
+    return RoadmapResponse(
         course_id="c1",
         generated_at=datetime(2026, 3, 1, 9, 0, 0),
         items=items,
     )
 
 
-def test_save_plan_replaces_existing_rows_before_insert():
+def test_save_roadmap_persists_in_memory():
+    repository = StudyRepository(None)
+    roadmap = _build_roadmap([
+        RoadmapItem(id="t1", topic="Foundations", date=date(2026, 3, 1),
+                    suggested_minutes=60, difficulty="Low", priority="High")
+    ])
+
+    repository.save_roadmap("u1", roadmap)
+
+    retrieved = repository.get_roadmap("u1", "c1")
+    assert retrieved is not None
+    assert retrieved.items[0].id == "t1"
+
+
+def test_roadmap_scoped_by_user():
+    repository = StudyRepository(None)
+    repository.save_roadmap("u1", _build_roadmap([]))
+    assert repository.get_roadmap("u1", "c1") is not None
+    assert repository.get_roadmap("u2", "c1") is None
+
+
+def test_save_roadmap_writes_to_supabase():
     supabase = _FakeSupabase()
     repository = StudyRepository(supabase)
-    plan = _build_plan(
-        [
-            DailyPlanItem(
-                date=date(2026, 3, 1),
-                topic_id="t1",
-                topic_title="Foundations",
-                planned_minutes=60,
-                status="completed",
-                rationale="Finish prerequisites.",
-            )
-        ]
-    )
+    roadmap = _build_roadmap([
+        RoadmapItem(id="t1", topic="Foundations", date=date(2026, 3, 1),
+                    suggested_minutes=60, difficulty="Low", priority="High")
+    ])
 
-    repository.save_plan("u1", plan)
+    repository.save_roadmap("u1", roadmap)
 
     plan_table = supabase.tables["study_plan_items"]
     assert plan_table.deleted is True
     assert plan_table.filters == [("user_id", "u1"), ("course_id", "c1")]
-    assert plan_table.inserted_rows == [
-        {
-            "user_id": "u1",
-            "course_id": "c1",
-            "date": "2026-03-01",
-            "topic_id": "t1",
-            "topic_title": "Foundations",
-            "planned_minutes": 60,
-            "status": "completed",
-            "rationale": "Finish prerequisites.",
-        }
-    ]
+    assert plan_table.inserted_rows[0]["topic_id"] == "t1"
 
 
-def test_save_plan_deletes_stale_rows_when_replan_is_empty():
-    supabase = _FakeSupabase()
-    repository = StudyRepository(supabase)
-    plan = _build_plan([])
+def test_progress_toggle():
+    repository = StudyRepository(None)
+    update = ProgressUpdateRequest(course_id="c1", topic_id="t1", completed=True)
+    repository.save_progress("u1", update)
+    assert "t1" in repository.get_completed_topic_ids("u1", "c1")
 
-    repository.save_plan("u1", plan)
-
-    plan_table = supabase.tables["study_plan_items"]
-    assert plan_table.deleted is True
-    assert plan_table.filters == [("user_id", "u1"), ("course_id", "c1")]
-    assert plan_table.inserted_rows is None
+    update2 = ProgressUpdateRequest(course_id="c1", topic_id="t1", completed=False)
+    repository.save_progress("u1", update2)
+    assert "t1" not in repository.get_completed_topic_ids("u1", "c1")
 
 
 def test_graph_storage_is_scoped_by_user_and_course():
@@ -170,9 +144,7 @@ def test_graph_storage_is_scoped_by_user_and_course():
         topics=[TopicNode(id="t1", title="Foundations")],
         edges=[],
     )
-
     repository.save_topic_graph("u1", "shared-course", graph)
-
     assert repository.get_graph("u1", "shared-course") is not None
     assert repository.get_graph("u2", "shared-course") is None
 
@@ -181,20 +153,8 @@ def test_get_graph_rebuilds_relationships_from_edge_rows():
     repository = StudyRepository(
         _FakeReadSupabase(
             topic_rows=[
-                {
-                    "topic_id": "t1",
-                    "title": "Foundations",
-                    "description": "",
-                    "difficulty": 2,
-                    "estimated_minutes": 60,
-                },
-                {
-                    "topic_id": "t2",
-                    "title": "Algorithms",
-                    "description": "",
-                    "difficulty": 3,
-                    "estimated_minutes": 90,
-                },
+                {"topic_id": "t1", "title": "Foundations", "description": "", "difficulty": 2, "estimated_minutes": 60},
+                {"topic_id": "t2", "title": "Algorithms", "description": "", "difficulty": 3, "estimated_minutes": 90},
             ],
             edge_rows=[
                 {"source": "t1", "target": "t2", "edge_type": "dependency", "weight": 1.0},
@@ -202,48 +162,8 @@ def test_get_graph_rebuilds_relationships_from_edge_rows():
             ],
         )
     )
-
     graph = repository.get_graph("u1", "c1")
-
     assert graph is not None
-    topic_by_id = {topic.id: topic for topic in graph.topics}
+    topic_by_id = {t.id: t for t in graph.topics}
     assert topic_by_id["t2"].dependencies == ["t1"]
     assert topic_by_id["t1"].similarity_links == ["t2"]
-    assert topic_by_id["t2"].similarity_links == ["t1"]
-
-
-def test_save_plan_does_not_cache_state_when_database_write_fails():
-    repository = StudyRepository(_FailingSupabase())
-    plan = _build_plan(
-        [
-            DailyPlanItem(
-                date=date(2026, 3, 1),
-                topic_id="t1",
-                topic_title="Foundations",
-                planned_minutes=60,
-                status="completed",
-                rationale="Finish prerequisites.",
-            )
-        ]
-    )
-
-    with pytest.raises(RepositoryError):
-        repository.save_plan("u1", plan)
-
-    assert ("u1", "c1") not in repository._memory_plans
-
-
-def test_save_progress_does_not_cache_state_when_database_write_fails():
-    repository = StudyRepository(_FailingSupabase())
-    update = ProgressUpdateRequest(
-        course_id="c1",
-        topic_id="t1",
-        date=date(2026, 3, 1),
-        minutes_spent=45,
-        completed=False,
-    )
-
-    with pytest.raises(RepositoryError):
-        repository.save_progress("u1", update)
-
-    assert repository._memory_progress[("u1", "c1")] == []

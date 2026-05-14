@@ -16,7 +16,7 @@ def test_plan_returns_503_when_repository_load_fails(monkeypatch):
     client = _client_with_auth_tokens(monkeypatch)
 
     class _BrokenRepository:
-        def get_plan(self, *args, **kwargs):
+        def get_roadmap(self, *args, **kwargs):
             raise RepositoryError("boom")
 
     app.dependency_overrides[routes.get_repository] = lambda: _BrokenRepository()
@@ -30,4 +30,4 @@ def test_plan_returns_503_when_repository_load_fails(monkeypatch):
         app.dependency_overrides.clear()
 
     assert response.status_code == 503
-    assert response.json()["detail"] == "Unable to load study plan."
+    assert response.json()["detail"] == "Unable to load roadmap."

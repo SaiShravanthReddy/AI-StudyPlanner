@@ -13,30 +13,48 @@ def _sample_topics() -> list[TopicNode]:
     ]
 
 
-def test_planner_respects_dependencies():
+def test_roadmap_respects_dependencies():
     planner = PlannerService(Settings())
-    plan = planner.generate_plan(
+    roadmap = planner.generate_roadmap(
         course_id="c1",
         topics=_sample_topics(),
         start_date=date(2026, 3, 1),
-        end_date=date(2026, 3, 4),
-        daily_study_minutes=120,
+        end_date=date(2026, 3, 10),
+        difficulty_level="medium",
     )
-    first_index = {item.topic_id: idx for idx, item in enumerate(plan.items)}
-    assert first_index["t1"] < first_index["t2"] < first_index["t3"]
+    order = {item.id: idx for idx, item in enumerate(roadmap.items)}
+    assert order["t1"] < order["t2"] < order["t3"]
 
 
-def test_replan_excludes_completed_topics():
+def test_roadmap_assigns_correct_priority():
     planner = PlannerService(Settings())
-    plan = planner.generate_plan(
+    roadmap = planner.generate_roadmap(
         course_id="c1",
         topics=_sample_topics(),
         start_date=date(2026, 3, 1),
-        end_date=date(2026, 3, 4),
-        daily_study_minutes=120,
-        completed_topic_ids={"t1"},
+        end_date=date(2026, 3, 10),
+        difficulty_level="medium",
     )
-    topic_ids = {item.topic_id for item in plan.items}
-    assert "t1" not in topic_ids
-    assert {"t2", "t3"}.issubset(topic_ids)
+    by_id = {item.id: item for item in roadmap.items}
+    assert by_id["t1"].priority == "High"
+    assert by_id["t2"].priority == "Medium"
+    assert by_id["t3"].priority == "Medium"
 
+
+def test_roadmap_scales_time_with_difficulty():
+    planner = PlannerService(Settings())
+    easy = planner.generate_roadmap(
+        course_id="c1",
+        topics=_sample_topics(),
+        start_date=date(2026, 3, 1),
+        end_date=date(2026, 3, 10),
+        difficulty_level="easy",
+    )
+    hard = planner.generate_roadmap(
+        course_id="c1",
+        topics=_sample_topics(),
+        start_date=date(2026, 3, 1),
+        end_date=date(2026, 3, 10),
+        difficulty_level="hard",
+    )
+    assert sum(i.suggested_minutes for i in hard.items) > sum(i.suggested_minutes for i in easy.items)

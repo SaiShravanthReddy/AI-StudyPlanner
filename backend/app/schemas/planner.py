@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+class DifficultyLevel(str, Enum):
+    easy = "easy"
+    medium = "medium"
+    hard = "hard"
 
 
 class TopicNode(BaseModel):
@@ -29,48 +36,39 @@ class TopicGraphResponse(BaseModel):
     edges: list[TopicEdge]
 
 
-class DailyPlanItem(BaseModel):
+class RoadmapItem(BaseModel):
+    id: str
+    topic: str
+    subtopic: Optional[str] = None
     date: date
-    topic_id: str
-    topic_title: str
-    planned_minutes: int = Field(ge=15)
-    status: str = "pending"
-    rationale: str = ""
+    suggested_minutes: int
+    difficulty: str  # "Low", "Medium", "High"
+    priority: str   # "High", "Medium", "Low"
+    dependency: Optional[str] = None  # display title of first prerequisite
+    completed: bool = False
 
 
-class StudyPlanResponse(BaseModel):
+class RoadmapResponse(BaseModel):
     course_id: str
     generated_at: datetime
-    items: list[DailyPlanItem]
-
-
-class IngestResponse(BaseModel):
-    graph: TopicGraphResponse
-    plan: StudyPlanResponse
+    items: list[RoadmapItem]
+    completion_score: float = 0.0
 
 
 class SyllabusIngestRequest(BaseModel):
     course_id: str
     course_title: str
-    syllabus_text: str = Field(min_length=50)
+    syllabus_text: str = Field(min_length=10)
     start_date: date
     end_date: Optional[date] = None
-    daily_study_minutes: int = Field(default=120, ge=30, le=480)
+    difficulty_level: DifficultyLevel = DifficultyLevel.medium
+
+
+class IngestResponse(BaseModel):
+    roadmap: RoadmapResponse
 
 
 class ProgressUpdateRequest(BaseModel):
     course_id: str
     topic_id: str
-    date: date
-    minutes_spent: int = Field(default=0, ge=0, le=1440)
-    completed: bool = False
-
-
-class ReplanRequest(BaseModel):
-    course_id: str
-    from_date: date
-    daily_study_minutes: int = Field(default=120, ge=30, le=480)
-
-
-class ReminderResponse(BaseModel):
-    reminders: list[str]
+    completed: bool

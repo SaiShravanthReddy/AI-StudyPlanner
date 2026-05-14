@@ -28,4 +28,4 @@ def test_plan_allows_authenticated_owner(monkeypatch):
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "Plan not found."
+    assert response.json()["detail"] == "Roadmap not found."

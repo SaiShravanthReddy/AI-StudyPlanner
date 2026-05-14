@@ -294,6 +294,58 @@ th {
   }
 }
 
+.completion-block {
+  margin: 0.6rem 0 1rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.completion-label {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.completion-bar-track {
+  height: 10px;
+  background: #f0ddc4;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.completion-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0d4e4b, #0d7264);
+  border-radius: 999px;
+  transition: width 400ms ease;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.diff-low  { background: #e0f5df; color: #235f33; }
+.diff-medium { background: #feefcc; color: #825600; }
+.diff-high { background: #ffd8d0; color: #8d2d20; }
+
+.prio-high   { background: #ffd8d0; color: #8d2d20; }
+.prio-medium { background: #feefcc; color: #825600; }
+.prio-low    { background: #e0f5df; color: #235f33; }
+
+tr.row-done td {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+tr.row-done td:first-child {
+  text-decoration: none;
+  opacity: 1;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

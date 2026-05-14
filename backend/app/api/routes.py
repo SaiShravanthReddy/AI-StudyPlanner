@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,24 +12,26 @@ from app.db.supabase_client import build_supabase_client
 from app.schemas.planner import (
     IngestResponse,
     ProgressUpdateRequest,
-    ReminderResponse,
-    ReplanRequest,
-    StudyPlanResponse,
+    RoadmapResponse,
     SyllabusIngestRequest,
 )
 from app.services.embedding_service import EmbeddingService
 from app.services.gpt_service import GPTTopicExtractor
-from app.services.langgraph_workflow import build_ingest_workflow, build_replan_workflow
+from app.services.langgraph_workflow import build_ingest_workflow
 from app.services.planner_service import PlannerService
 from app.services.rag_service import RAGService
-from app.services.reminder_service import ReminderService
 from app.services.topic_graph_service import TopicGraphService
 
 router = APIRouter()
 
+_repository: Optional[StudyRepository] = None
+
 
 def get_repository(settings: Settings = Depends(get_settings)) -> StudyRepository:
-    return StudyRepository(build_supabase_client(settings))
+    global _repository
+    if _repository is None:
+        _repository = StudyRepository(build_supabase_client(settings))
+    return _repository
 
 
 def get_topic_extractor(settings: Settings = Depends(get_settings)) -> GPTTopicExtractor:
@@ -64,16 +66,6 @@ def get_ingest_workflow(
     return build_ingest_workflow(topic_extractor, rag_service, topic_graph_service, planner_service)
 
 
-def get_replan_workflow(
-    planner_service: PlannerService = Depends(get_planner_service),
-):
-    return build_replan_workflow(planner_service)
-
-
-def get_reminder_service(settings: Settings = Depends(get_settings)) -> ReminderService:
-    return ReminderService(settings)
-
-
 def _storage_error(detail: str) -> HTTPException:
     return HTTPException(status_code=503, detail=detail)
 
@@ -98,31 +90,29 @@ def ingest_syllabus(
         "syllabus_text": payload.syllabus_text,
         "start_date": payload.start_date,
         "end_date": payload.end_date,
-        "daily_study_minutes": payload.daily_study_minutes,
+        "difficulty_level": payload.difficulty_level.value,
         "raw_topics": [],
         "rag_index": None,
         "enriched_topics": [],
         "topic_graph": None,
-        "study_plan": None,
+        "roadmap": None,
     })
     graph = result["topic_graph"]
-    plan = result["study_plan"]
+    roadmap = result["roadmap"]
     try:
-        repository.save_course(
-            {
-                "course_id": payload.course_id,
-                "user_id": user_id,
-                "course_title": payload.course_title,
-                "start_date": payload.start_date.isoformat(),
-                "end_date": (payload.end_date or (payload.start_date + timedelta(days=settings.default_planning_window_days - 1))).isoformat(),
-                "daily_study_minutes": payload.daily_study_minutes,
-            }
-        )
+        repository.save_course({
+            "course_id": payload.course_id,
+            "user_id": user_id,
+            "course_title": payload.course_title,
+            "start_date": payload.start_date.isoformat(),
+            "end_date": (payload.end_date or (payload.start_date + timedelta(days=settings.default_planning_window_days - 1))).isoformat(),
+            "difficulty_level": payload.difficulty_level.value,
+        })
         repository.save_topic_graph(user_id, payload.course_id, graph)
-        repository.save_plan(user_id, plan)
+        repository.save_roadmap(user_id, roadmap)
     except RepositoryError:
-        raise _storage_error("Unable to persist generated study plan.")
-    return IngestResponse(graph=graph, plan=plan)
+        raise _storage_error("Unable to persist generated roadmap.")
+    return IngestResponse(roadmap=roadmap)
 
 
 @router.post("/progress", response_model=dict)
@@ -133,97 +123,34 @@ def track_progress(
 ) -> dict:
     user_id = current_user.user_id
     try:
-        graph = repository.get_graph(user_id, payload.course_id)
-    except RepositoryError:
-        raise _storage_error("Unable to load course topics.")
-    if graph is None:
-        raise HTTPException(status_code=404, detail="Course topics not found.")
-    try:
         repository.save_progress(user_id, payload)
     except RepositoryError:
         raise _storage_error("Unable to save progress.")
-    return {"status": "saved", "course_id": payload.course_id, "topic_id": payload.topic_id}
+    completed = repository.get_completed_topic_ids(user_id, payload.course_id)
+    roadmap = repository.get_roadmap(user_id, payload.course_id)
+    total = len(roadmap.items) if roadmap else 0
+    score = round(len(completed) / total * 100, 1) if total else 0.0
+    return {"topic_id": payload.topic_id, "completed": payload.completed, "completion_score": score}
 
 
-@router.post("/plan/replan", response_model=StudyPlanResponse)
-def replan(
-    payload: ReplanRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    settings: Settings = Depends(get_settings),
-    repository: StudyRepository = Depends(get_repository),
-    workflow=Depends(get_replan_workflow),
-) -> StudyPlanResponse:
-    user_id = current_user.user_id
-    try:
-        graph = repository.get_graph(user_id, payload.course_id)
-        completed_topic_ids = repository.get_completed_topic_ids(user_id, payload.course_id)
-        existing_plan = repository.get_plan(user_id, payload.course_id)
-    except RepositoryError:
-        raise _storage_error("Unable to load plan data for replanning.")
-    if graph is None:
-        raise HTTPException(status_code=404, detail="Course topics not found.")
-    result = workflow.invoke({
-        "course_id": payload.course_id,
-        "from_date": payload.from_date,
-        "daily_study_minutes": payload.daily_study_minutes,
-        "default_window_days": settings.default_planning_window_days,
-        "topic_graph": graph,
-        "completed_topic_ids": list(completed_topic_ids),
-        "existing_plan": existing_plan,
-        "horizon_end": None,
-        "study_plan": None,
-    })
-    replanned = result["study_plan"]
-    try:
-        repository.save_plan(user_id, replanned)
-    except RepositoryError:
-        raise _storage_error("Unable to persist replanned study schedule.")
-    return replanned
-
-
-@router.get("/plan/{course_id}", response_model=StudyPlanResponse)
+@router.get("/plan/{course_id}", response_model=RoadmapResponse)
 def get_plan(
     course_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
     repository: StudyRepository = Depends(get_repository),
-) -> StudyPlanResponse:
+) -> RoadmapResponse:
     user_id = current_user.user_id
     try:
-        plan = repository.get_plan(user_id=user_id, course_id=course_id)
+        roadmap = repository.get_roadmap(user_id=user_id, course_id=course_id)
     except RepositoryError:
-        raise _storage_error("Unable to load study plan.")
-    if plan is None:
-        raise HTTPException(status_code=404, detail="Plan not found.")
-    return plan
-
-
-@router.get("/progress/{course_id}", response_model=list[dict])
-def get_progress(
-    course_id: str,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    repository: StudyRepository = Depends(get_repository),
-) -> list[dict]:
-    user_id = current_user.user_id
-    try:
-        return repository.get_progress_rows(user_id=user_id, course_id=course_id)
-    except RepositoryError:
-        raise _storage_error("Unable to load progress history.")
-
-
-@router.get("/reminders/{course_id}", response_model=ReminderResponse)
-def get_reminders(
-    course_id: str,
-    day: Optional[date] = None,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    repository: StudyRepository = Depends(get_repository),
-    reminder_service: ReminderService = Depends(get_reminder_service),
-) -> ReminderResponse:
-    user_id = current_user.user_id
-    try:
-        plan = repository.get_plan(user_id=user_id, course_id=course_id)
-    except RepositoryError:
-        raise _storage_error("Unable to load reminders.")
-    if plan is None:
-        raise HTTPException(status_code=404, detail="Plan not found.")
-    reminders = reminder_service.build_daily_reminders(plan, for_day=day)
-    return ReminderResponse(reminders=reminders)
+        raise _storage_error("Unable to load roadmap.")
+    if roadmap is None:
+        raise HTTPException(status_code=404, detail="Roadmap not found.")
+    completed = repository.get_completed_topic_ids(user_id, course_id)
+    items = [
+        item.model_copy(update={"completed": item.id in completed})
+        for item in roadmap.items
+    ]
+    total = len(items)
+    score = round(len(completed) / total * 100, 1) if total else 0.0
+    return roadmap.model_copy(update={"items": items, "completion_score": score})
