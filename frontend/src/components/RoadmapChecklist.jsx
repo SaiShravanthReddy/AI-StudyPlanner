@@ -36,6 +36,7 @@ export default function RoadmapChecklist({ roadmap, onToggle }) {
               <th>Difficulty</th>
               <th>Priority</th>
               <th>Depends On</th>
+              <th>Resources</th>
             </tr>
           </thead>
           <tbody>
@@ -62,6 +63,21 @@ export default function RoadmapChecklist({ roadmap, onToggle }) {
                   </span>
                 </td>
                 <td className="muted">{item.dependency ?? "—"}</td>
+                <td>
+                  {item.resources?.article_url && (
+                    <a href={item.resources.article_url} target="_blank" rel="noreferrer" className="resource-link">
+                      📄 {item.resources.article_title ?? "Article"}
+                    </a>
+                  )}
+                  {item.resources?.video_url && (
+                    <a href={item.resources.video_url} target="_blank" rel="noreferrer" className="resource-link">
+                      ▶ {item.resources.video_title ?? "Video"}
+                    </a>
+                  )}
+                  {!item.resources?.article_url && !item.resources?.video_url && (
+                    <span className="muted">—</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -20,6 +20,7 @@ from app.services.gpt_service import GPTTopicExtractor
 from app.services.langgraph_workflow import build_ingest_workflow
 from app.services.planner_service import PlannerService
 from app.services.rag_service import RAGService
+from app.services.resource_service import ResourceService
 from app.services.topic_graph_service import TopicGraphService
 
 router = APIRouter()
@@ -57,13 +58,18 @@ def get_rag_service(settings: Settings = Depends(get_settings)) -> RAGService:
     return RAGService(settings)
 
 
+def get_resource_service(settings: Settings = Depends(get_settings)) -> ResourceService:
+    return ResourceService(settings)
+
+
 def get_ingest_workflow(
     topic_extractor: GPTTopicExtractor = Depends(get_topic_extractor),
     rag_service: RAGService = Depends(get_rag_service),
     topic_graph_service: TopicGraphService = Depends(get_topic_graph_service),
     planner_service: PlannerService = Depends(get_planner_service),
+    resource_service: ResourceService = Depends(get_resource_service),
 ):
-    return build_ingest_workflow(topic_extractor, rag_service, topic_graph_service, planner_service)
+    return build_ingest_workflow(topic_extractor, rag_service, topic_graph_service, planner_service, resource_service)
 
 
 _PRIORITY_WEIGHT = {"High": 3, "Medium": 2, "Low": 1}
@@ -106,6 +112,7 @@ def ingest_syllabus(
         "rag_index": None,
         "enriched_topics": [],
         "topic_graph": None,
+        "resources": {},
         "roadmap": None,
     })
     graph = result["topic_graph"]

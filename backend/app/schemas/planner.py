@@ -29,6 +29,13 @@ class TopicGraphResponse(BaseModel):
     edges: list[TopicEdge]
 
 
+class ResourceSuggestion(BaseModel):
+    article_title: Optional[str] = None
+    article_url: Optional[str] = None
+    video_title: Optional[str] = None
+    video_url: Optional[str] = None
+
+
 class RoadmapItem(BaseModel):
     id: str
     topic: str
@@ -38,6 +45,7 @@ class RoadmapItem(BaseModel):
     difficulty: str  # "Low", "Medium", "High"
     priority: str   # "High", "Medium", "Low"
     dependency: Optional[str] = None  # display title of first prerequisite
+    resources: Optional[ResourceSuggestion] = None
     completed: bool = False
 
 

@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from app.core.config import Settings
-from app.schemas.planner import RoadmapItem, RoadmapResponse, TopicNode
+from app.schemas.planner import ResourceSuggestion, RoadmapItem, RoadmapResponse, TopicNode
 
 _DAILY_BUDGET = {"easy": 60, "medium": 120, "hard": 180}
 _TIME_MULTIPLIER = {"easy": 0.75, "medium": 1.0, "hard": 1.5}
@@ -66,12 +66,14 @@ class PlannerService:
         start_date: date,
         end_date: Optional[date],
         difficulty_level: str,
+        resources: dict[str, ResourceSuggestion] | None = None,
     ) -> RoadmapResponse:
         end_date = end_date or (start_date + timedelta(days=self.settings.default_planning_window_days - 1))
 
         if not topics:
             return RoadmapResponse(course_id=course_id, generated_at=datetime.utcnow(), items=[])
 
+        resources = resources or {}
         daily_budget = _DAILY_BUDGET.get(difficulty_level, 120)
         multiplier = _TIME_MULTIPLIER.get(difficulty_level, 1.0)
         topic_by_id = {t.id: t for t in topics}
@@ -123,6 +125,7 @@ class PlannerService:
                 difficulty=difficulty_labels[topic.id],
                 priority=priority_labels[topic.id],
                 dependency=dep_title,
+                resources=resources.get(topic.title),
                 completed=False,
             ))
 
