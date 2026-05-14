@@ -23,7 +23,7 @@ def test_plan_returns_503_when_repository_load_fails(monkeypatch):
 
     try:
         response = client.get(
-            "/api/v1/plan/student-001/course-1",
+            "/api/v1/plan/course-1",
             headers={"Authorization": "Bearer test-token-1"},
         )
     finally:

@@ -16,12 +16,11 @@ export default function DashboardPage() {
   const [reminders, setReminders] = useState([]);
   const [error, setError] = useState("");
 
-  const userId = useMemo(() => activeCourse?.user_id || "student-001", [activeCourse]);
   const courseId = useMemo(() => activeCourse?.course_id || "cs-grad-601", [activeCourse]);
 
-  const refreshReminders = async (uid, cid) => {
+  const refreshReminders = async (cid) => {
     try {
-      const payload = await fetchReminders(uid, cid);
+      const payload = await fetchReminders(cid);
       setReminders(payload.reminders || []);
     } catch {
       setReminders([]);
@@ -36,7 +35,7 @@ export default function DashboardPage() {
       setGraph(response.graph);
       setPlan(response.plan);
       setActiveCourse(payload);
-      await refreshReminders(payload.user_id, payload.course_id);
+      await refreshReminders(payload.course_id);
     } catch (err) {
       setError(err?.response?.data?.detail || "Failed to generate plan.");
     } finally {
@@ -49,13 +48,12 @@ export default function DashboardPage() {
     try {
       await saveProgress(payload);
       const replanned = await replan({
-        user_id: payload.user_id,
         course_id: payload.course_id,
         from_date: todayIsoDate(),
         daily_study_minutes: activeCourse?.daily_study_minutes || 120
       });
       setPlan(replanned);
-      await refreshReminders(payload.user_id, payload.course_id);
+      await refreshReminders(payload.course_id);
     } catch (err) {
       setError(err?.response?.data?.detail || "Failed to save progress or replan.");
     }
@@ -64,12 +62,7 @@ export default function DashboardPage() {
   return (
     <div className="layout">
       <header className="hero">
-        <p className="eyebrow">Graduate CS Workflow</p>
         <h1>AI-Powered Adaptive Study Planner</h1>
-        <p className="subtitle">
-          Convert course syllabi into topic graphs and generate daily plans that adapt to your pace, dependencies, and
-          topic difficulty.
-        </p>
       </header>
 
       {error ? <div className="error-banner">{error}</div> : null}
@@ -77,7 +70,7 @@ export default function DashboardPage() {
       <CourseForm onSubmit={handleIngest} loading={loading} />
       <TopicGraphView graph={graph} />
       <StudyPlanTable plan={plan} />
-      <ProgressTracker plan={plan} userId={userId} courseId={courseId} onProgress={handleProgress} />
+      <ProgressTracker plan={plan} courseId={courseId} onProgress={handleProgress} />
       <ReminderPanel reminders={reminders} />
     </div>
   );

@@ -32,7 +32,6 @@ class IngestState(TypedDict):
     """Mutable state flowing through the syllabus-ingestion pipeline."""
 
     # ── inputs ──────────────────────────────────────────────────────────────
-    user_id: str
     course_id: str
     course_title: str
     syllabus_text: str
@@ -54,7 +53,6 @@ class ReplanState(TypedDict):
     """Mutable state flowing through the adaptive replanning pipeline."""
 
     # ── inputs ──────────────────────────────────────────────────────────────
-    user_id: str
     course_id: str
     from_date: date
     daily_study_minutes: int
@@ -132,7 +130,6 @@ def build_ingest_workflow(
 
     def generate_plan_node(state: IngestState) -> dict:
         plan = planner_service.generate_plan(
-            user_id=state["user_id"],
             course_id=state["course_id"],
             topics=state["topic_graph"].topics,
             start_date=state["start_date"],
@@ -184,7 +181,6 @@ def build_replan_workflow(planner_service: PlannerService) -> Any:
 
     def generate_replan_node(state: ReplanState) -> dict:
         plan = planner_service.generate_plan(
-            user_id=state["user_id"],
             course_id=state["course_id"],
             topics=state["topic_graph"].topics,
             start_date=state["from_date"],

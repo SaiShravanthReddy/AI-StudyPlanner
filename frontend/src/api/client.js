@@ -16,8 +16,8 @@ export async function ingestSyllabus(payload) {
   return data;
 }
 
-export async function fetchPlan(userId, courseId) {
-  const { data } = await http.get(`/plan/${encodeURIComponent(userId)}/${encodeURIComponent(courseId)}`);
+export async function fetchPlan(courseId) {
+  const { data } = await http.get(`/plan/${encodeURIComponent(courseId)}`);
   return data;
 }
 
@@ -31,7 +31,7 @@ export async function replan(payload) {
   return data;
 }
 
-export async function fetchReminders(userId, courseId) {
-  const { data } = await http.get(`/reminders/${encodeURIComponent(userId)}/${encodeURIComponent(courseId)}`);
+export async function fetchReminders(courseId) {
+  const { data } = await http.get(`/reminders/${encodeURIComponent(courseId)}`);
   return data;
 }

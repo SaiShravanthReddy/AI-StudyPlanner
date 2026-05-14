@@ -22,7 +22,6 @@ class PlannerService:
 
     def generate_plan(
         self,
-        user_id: str,
         course_id: str,
         topics: list[TopicNode],
         start_date: date,
@@ -34,7 +33,7 @@ class PlannerService:
         end_date = end_date or (start_date + timedelta(days=self.settings.default_planning_window_days - 1))
         active_topics = [topic for topic in topics if topic.id not in completed_topic_ids]
         if not active_topics:
-            return StudyPlanResponse(course_id=course_id, user_id=user_id, generated_at=datetime.utcnow(), items=[])
+            return StudyPlanResponse(course_id=course_id, generated_at=datetime.utcnow(), items=[])
 
         topic_by_id = {topic.id: topic for topic in active_topics}
         indegree: dict[str, int] = {topic.id: 0 for topic in active_topics}
@@ -98,7 +97,7 @@ class PlannerService:
                     heapq.heappush(available, self._priority_tuple(block.topic))
                 if budget < 15:
                     break
-        return StudyPlanResponse(course_id=course_id, user_id=user_id, generated_at=datetime.utcnow(), items=plan_items)
+        return StudyPlanResponse(course_id=course_id, generated_at=datetime.utcnow(), items=plan_items)
 
     def _priority_tuple(self, topic: TopicNode) -> tuple[int, int, str]:
         return (-topic.difficulty, -topic.estimated_minutes, topic.id)

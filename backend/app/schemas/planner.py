@@ -40,7 +40,6 @@ class DailyPlanItem(BaseModel):
 
 class StudyPlanResponse(BaseModel):
     course_id: str
-    user_id: str
     generated_at: datetime
     items: list[DailyPlanItem]
 
@@ -51,7 +50,6 @@ class IngestResponse(BaseModel):
 
 
 class SyllabusIngestRequest(BaseModel):
-    user_id: str
     course_id: str
     course_title: str
     syllabus_text: str = Field(min_length=50)
@@ -61,7 +59,6 @@ class SyllabusIngestRequest(BaseModel):
 
 
 class ProgressUpdateRequest(BaseModel):
-    user_id: str
     course_id: str
     topic_id: str
     date: date
@@ -70,12 +67,10 @@ class ProgressUpdateRequest(BaseModel):
 
 
 class ReplanRequest(BaseModel):
-    user_id: str
     course_id: str
     from_date: date
     daily_study_minutes: int = Field(default=120, ge=30, le=480)
 
 
 class ReminderResponse(BaseModel):
-    user_id: str
     reminders: list[str]

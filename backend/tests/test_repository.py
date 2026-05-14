@@ -109,7 +109,6 @@ class _FakeReadSupabase:
 
 def _build_plan(items):
     return StudyPlanResponse(
-        user_id="u1",
         course_id="c1",
         generated_at=datetime(2026, 3, 1, 9, 0, 0),
         items=items,
@@ -132,7 +131,7 @@ def test_save_plan_replaces_existing_rows_before_insert():
         ]
     )
 
-    repository.save_plan(plan)
+    repository.save_plan("u1", plan)
 
     plan_table = supabase.tables["study_plan_items"]
     assert plan_table.deleted is True
@@ -156,7 +155,7 @@ def test_save_plan_deletes_stale_rows_when_replan_is_empty():
     repository = StudyRepository(supabase)
     plan = _build_plan([])
 
-    repository.save_plan(plan)
+    repository.save_plan("u1", plan)
 
     plan_table = supabase.tables["study_plan_items"]
     assert plan_table.deleted is True
@@ -229,7 +228,7 @@ def test_save_plan_does_not_cache_state_when_database_write_fails():
     )
 
     with pytest.raises(RepositoryError):
-        repository.save_plan(plan)
+        repository.save_plan("u1", plan)
 
     assert ("u1", "c1") not in repository._memory_plans
 
@@ -237,7 +236,6 @@ def test_save_plan_does_not_cache_state_when_database_write_fails():
 def test_save_progress_does_not_cache_state_when_database_write_fails():
     repository = StudyRepository(_FailingSupabase())
     update = ProgressUpdateRequest(
-        user_id="u1",
         course_id="c1",
         topic_id="t1",
         date=date(2026, 3, 1),
@@ -246,6 +244,6 @@ def test_save_progress_does_not_cache_state_when_database_write_fails():
     )
 
     with pytest.raises(RepositoryError):
-        repository.save_progress(update)
+        repository.save_progress("u1", update)
 
     assert repository._memory_progress[("u1", "c1")] == []

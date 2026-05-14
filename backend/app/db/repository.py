@@ -86,15 +86,15 @@ class StudyRepository:
             raise RepositoryError("Failed to persist topic graph.") from exc
         self._memory_graphs[(user_id, course_id)] = deepcopy(graph)
 
-    def save_plan(self, plan: StudyPlanResponse) -> None:
+    def save_plan(self, user_id: str, plan: StudyPlanResponse) -> None:
         if not self.supabase:
-            self._memory_plans[(plan.user_id, plan.course_id)] = deepcopy(plan)
+            self._memory_plans[(user_id, plan.course_id)] = deepcopy(plan)
             return
         rows = []
         for item in plan.items:
             rows.append(
                 {
-                    "user_id": plan.user_id,
+                    "user_id": user_id,
                     "course_id": plan.course_id,
                     "date": item.date.isoformat(),
                     "topic_id": item.topic_id,
@@ -106,13 +106,13 @@ class StudyRepository:
             )
         try:
             plan_table = self.supabase.table("study_plan_items")
-            plan_table.delete().eq("user_id", plan.user_id).eq("course_id", plan.course_id).execute()
+            plan_table.delete().eq("user_id", user_id).eq("course_id", plan.course_id).execute()
             if rows:
                 plan_table.insert(rows).execute()
         except Exception as exc:
-            logger.exception("Failed to persist study plan", extra={"user_id": plan.user_id, "course_id": plan.course_id})
+            logger.exception("Failed to persist study plan", extra={"user_id": user_id, "course_id": plan.course_id})
             raise RepositoryError("Failed to persist study plan.") from exc
-        self._memory_plans[(plan.user_id, plan.course_id)] = deepcopy(plan)
+        self._memory_plans[(user_id, plan.course_id)] = deepcopy(plan)
 
     def get_plan(self, user_id: str, course_id: str) -> Optional[StudyPlanResponse]:
         plan = self._memory_plans.get((user_id, course_id))
@@ -145,7 +145,6 @@ class StudyRepository:
                     )
                 )
             plan = StudyPlanResponse(
-                user_id=user_id,
                 course_id=course_id,
                 generated_at=datetime.utcnow(),
                 items=items,
@@ -222,9 +221,9 @@ class StudyRepository:
             logger.exception("Failed to load topic graph", extra={"user_id": user_id, "course_id": course_id})
             raise RepositoryError("Failed to load topic graph.") from exc
 
-    def save_progress(self, update: ProgressUpdateRequest) -> None:
+    def save_progress(self, user_id: str, update: ProgressUpdateRequest) -> None:
         row = {
-            "user_id": update.user_id,
+            "user_id": user_id,
             "course_id": update.course_id,
             "topic_id": update.topic_id,
             "date": update.date.isoformat(),
@@ -232,14 +231,14 @@ class StudyRepository:
             "completed": update.completed,
         }
         if not self.supabase:
-            self._memory_progress[(update.user_id, update.course_id)].append(deepcopy(row))
+            self._memory_progress[(user_id, update.course_id)].append(deepcopy(row))
             return
         try:
             self.supabase.table("progress_events").insert(row).execute()
         except Exception as exc:
-            logger.exception("Failed to persist progress", extra={"user_id": update.user_id, "course_id": update.course_id})
+            logger.exception("Failed to persist progress", extra={"user_id": user_id, "course_id": update.course_id})
             raise RepositoryError("Failed to persist progress.") from exc
-        self._memory_progress[(update.user_id, update.course_id)].append(deepcopy(row))
+        self._memory_progress[(user_id, update.course_id)].append(deepcopy(row))
 
     def get_completed_topic_ids(self, user_id: str, course_id: str) -> set[str]:
         rows = self._memory_progress.get((user_id, course_id), [])

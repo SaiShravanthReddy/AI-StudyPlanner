@@ -9,7 +9,6 @@ from app.services.reminder_service import ReminderService
 def test_reminders_default_to_configured_timezone():
     service = ReminderService(Settings(timezone="America/New_York"))
     plan = StudyPlanResponse(
-        user_id="u1",
         course_id="c1",
         generated_at=datetime(2026, 3, 1, 12, 0, 0),
         items=[

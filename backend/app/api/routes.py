@@ -91,10 +91,8 @@ def ingest_syllabus(
     repository: StudyRepository = Depends(get_repository),
     workflow=Depends(get_ingest_workflow),
 ) -> IngestResponse:
-    if payload.user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
+    user_id = current_user.user_id
     result = workflow.invoke({
-        "user_id": payload.user_id,
         "course_id": payload.course_id,
         "course_title": payload.course_title,
         "syllabus_text": payload.syllabus_text,
@@ -113,15 +111,15 @@ def ingest_syllabus(
         repository.save_course(
             {
                 "course_id": payload.course_id,
-                "user_id": payload.user_id,
+                "user_id": user_id,
                 "course_title": payload.course_title,
                 "start_date": payload.start_date.isoformat(),
                 "end_date": (payload.end_date or (payload.start_date + timedelta(days=settings.default_planning_window_days - 1))).isoformat(),
                 "daily_study_minutes": payload.daily_study_minutes,
             }
         )
-        repository.save_topic_graph(payload.user_id, payload.course_id, graph)
-        repository.save_plan(plan)
+        repository.save_topic_graph(user_id, payload.course_id, graph)
+        repository.save_plan(user_id, plan)
     except RepositoryError:
         raise _storage_error("Unable to persist generated study plan.")
     return IngestResponse(graph=graph, plan=plan)
@@ -133,16 +131,15 @@ def track_progress(
     current_user: AuthenticatedUser = Depends(get_current_user),
     repository: StudyRepository = Depends(get_repository),
 ) -> dict:
-    if payload.user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
+    user_id = current_user.user_id
     try:
-        graph = repository.get_graph(payload.user_id, payload.course_id)
+        graph = repository.get_graph(user_id, payload.course_id)
     except RepositoryError:
         raise _storage_error("Unable to load course topics.")
     if graph is None:
         raise HTTPException(status_code=404, detail="Course topics not found.")
     try:
-        repository.save_progress(payload)
+        repository.save_progress(user_id, payload)
     except RepositoryError:
         raise _storage_error("Unable to save progress.")
     return {"status": "saved", "course_id": payload.course_id, "topic_id": payload.topic_id}
@@ -156,18 +153,16 @@ def replan(
     repository: StudyRepository = Depends(get_repository),
     workflow=Depends(get_replan_workflow),
 ) -> StudyPlanResponse:
-    if payload.user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
+    user_id = current_user.user_id
     try:
-        graph = repository.get_graph(payload.user_id, payload.course_id)
-        completed_topic_ids = repository.get_completed_topic_ids(payload.user_id, payload.course_id)
-        existing_plan = repository.get_plan(payload.user_id, payload.course_id)
+        graph = repository.get_graph(user_id, payload.course_id)
+        completed_topic_ids = repository.get_completed_topic_ids(user_id, payload.course_id)
+        existing_plan = repository.get_plan(user_id, payload.course_id)
     except RepositoryError:
         raise _storage_error("Unable to load plan data for replanning.")
     if graph is None:
         raise HTTPException(status_code=404, detail="Course topics not found.")
     result = workflow.invoke({
-        "user_id": payload.user_id,
         "course_id": payload.course_id,
         "from_date": payload.from_date,
         "daily_study_minutes": payload.daily_study_minutes,
@@ -180,21 +175,19 @@ def replan(
     })
     replanned = result["study_plan"]
     try:
-        repository.save_plan(replanned)
+        repository.save_plan(user_id, replanned)
     except RepositoryError:
         raise _storage_error("Unable to persist replanned study schedule.")
     return replanned
 
 
-@router.get("/plan/{user_id}/{course_id}", response_model=StudyPlanResponse)
+@router.get("/plan/{course_id}", response_model=StudyPlanResponse)
 def get_plan(
-    user_id: str,
     course_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
     repository: StudyRepository = Depends(get_repository),
 ) -> StudyPlanResponse:
-    if user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
+    user_id = current_user.user_id
     try:
         plan = repository.get_plan(user_id=user_id, course_id=course_id)
     except RepositoryError:
@@ -204,32 +197,28 @@ def get_plan(
     return plan
 
 
-@router.get("/progress/{user_id}/{course_id}", response_model=list[dict])
+@router.get("/progress/{course_id}", response_model=list[dict])
 def get_progress(
-    user_id: str,
     course_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
     repository: StudyRepository = Depends(get_repository),
 ) -> list[dict]:
-    if user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
+    user_id = current_user.user_id
     try:
         return repository.get_progress_rows(user_id=user_id, course_id=course_id)
     except RepositoryError:
         raise _storage_error("Unable to load progress history.")
 
 
-@router.get("/reminders/{user_id}/{course_id}", response_model=ReminderResponse)
+@router.get("/reminders/{course_id}", response_model=ReminderResponse)
 def get_reminders(
-    user_id: str,
     course_id: str,
     day: Optional[date] = None,
     current_user: AuthenticatedUser = Depends(get_current_user),
     repository: StudyRepository = Depends(get_repository),
     reminder_service: ReminderService = Depends(get_reminder_service),
 ) -> ReminderResponse:
-    if user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Forbidden for requested user.")
+    user_id = current_user.user_id
     try:
         plan = repository.get_plan(user_id=user_id, course_id=course_id)
     except RepositoryError:
@@ -237,4 +226,4 @@ def get_reminders(
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found.")
     reminders = reminder_service.build_daily_reminders(plan, for_day=day)
-    return ReminderResponse(user_id=user_id, reminders=reminders)
+    return ReminderResponse(reminders=reminders)

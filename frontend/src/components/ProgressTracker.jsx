@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 
 import { todayIsoDate } from "../utils/date";
 
-export default function ProgressTracker({ plan, userId, courseId, onProgress }) {
+export default function ProgressTracker({ plan, courseId, onProgress }) {
   const [selectedTopic, setSelectedTopic] = useState("");
   const [minutesSpent, setMinutesSpent] = useState(60);
   const [completed, setCompleted] = useState(true);
@@ -31,7 +31,6 @@ export default function ProgressTracker({ plan, userId, courseId, onProgress }) 
     event.preventDefault();
     const topicId = selectedTopic || topicOptions[0].id;
     onProgress({
-      user_id: userId,
       course_id: courseId,
       topic_id: topicId,
       date: todayIsoDate(),

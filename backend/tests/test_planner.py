@@ -16,7 +16,6 @@ def _sample_topics() -> list[TopicNode]:
 def test_planner_respects_dependencies():
     planner = PlannerService(Settings())
     plan = planner.generate_plan(
-        user_id="u1",
         course_id="c1",
         topics=_sample_topics(),
         start_date=date(2026, 3, 1),
@@ -30,7 +29,6 @@ def test_planner_respects_dependencies():
 def test_replan_excludes_completed_topics():
     planner = PlannerService(Settings())
     plan = planner.generate_plan(
-        user_id="u1",
         course_id="c1",
         topics=_sample_topics(),
         start_date=date(2026, 3, 1),
