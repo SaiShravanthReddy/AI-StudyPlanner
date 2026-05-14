@@ -17,7 +17,6 @@ export default function CourseForm({ onSubmit, loading }) {
     syllabus_text: templateText,
     start_date: todayIsoDate(),
     end_date: "",
-    difficulty_level: "medium",
   });
 
   const handleChange = (event) => {
@@ -51,7 +50,7 @@ export default function CourseForm({ onSubmit, loading }) {
           required
         />
       </label>
-      <div className="grid three">
+      <div className="grid two">
         <label>
           Start Date
           <input type="date" name="start_date" value={form.start_date} onChange={handleChange} required />
@@ -59,14 +58,6 @@ export default function CourseForm({ onSubmit, loading }) {
         <label>
           End Date
           <input type="date" name="end_date" value={form.end_date} onChange={handleChange} />
-        </label>
-        <label>
-          Difficulty
-          <select name="difficulty_level" value={form.difficulty_level} onChange={handleChange}>
-            <option value="easy">Easy</option>
-            <option value="medium">Medium</option>
-            <option value="hard">Hard</option>
-          </select>
         </label>
       </div>
       <button className="button-primary" type="submit" disabled={loading}>
