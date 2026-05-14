@@ -2,19 +2,18 @@ import { useState } from "react";
 
 import { todayIsoDate } from "../utils/date";
 
-const templateText = `Week 1: Introduction, scope, and learning outcomes.
-Week 2: Core theory, notation, and foundational proofs.
-Week 3: Algorithm design patterns and complexity.
-Week 4: Data modeling, constraints, and optimization.
-Week 5: Midterm prep and review.
-Week 6: Advanced topics and case studies.
-Week 7: Applied project work and implementation.
-Week 8: Final evaluation and synthesis.`;
+const templateText = `Representational power of Multi-layer Perceptrons
+Worked out example of the Exclusive-OR network
+Gradient of a function; Gradient descent/ascent
+The logistic function and its derivative
+Logistic regression/Gradient descent for a single neuron
+Error back-propagation for multi layer networks
+The vanishing gradient problem; ReLU, Leaky ReLU, Soft-Max`;
 
 export default function CourseForm({ onSubmit, loading }) {
   const [form, setForm] = useState({
-    course_id: "cs-grad-601",
-    course_title: "Advanced Computer Science Seminar",
+    course_id: "CAP 6610",
+    course_title: "Machine Learning",
     syllabus_text: templateText,
     start_date: todayIsoDate(),
     end_date: "",
