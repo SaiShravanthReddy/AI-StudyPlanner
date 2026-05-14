@@ -40,13 +40,13 @@ class GPTTopicExtractor:
 
     def _extract_with_gpt(self, syllabus_text: str, course_title: str) -> list[TopicDraft]:
         system_prompt = (
-            "You are an academic planning assistant. Analyse the syllabus and produce an ordered list of topics "
-            "arranged in the optimal learning sequence: foundational concepts first, building progressively to "
-            "advanced material. For each topic identify genuine prerequisite topics — concepts the student must "
-            "understand first — as the 'dependencies' list. Ensure every dependency title exactly matches another "
-            "topic title in your list, and that no topic depends on a topic that appears after it. "
+            "You are an academic planning assistant. Extract topics from the syllabus and identify their "
+            "prerequisite relationships using your knowledge of the subject — completely ignore the order "
+            "topics appear in the syllabus text. For each topic, list in 'dependencies' only the topics "
+            "that a student must genuinely understand first before studying this one. "
             "Return strict JSON only with shape: "
             '{"topics":[{"title":"", "description":"", "difficulty":1-5, "estimated_minutes":30-240, "dependencies":["prerequisite topic title"]}]}. '
+            "Every dependency must exactly match another topic title in your list. "
             "Use concise topic titles and no markdown."
         )
         user_prompt = (
@@ -54,7 +54,8 @@ class GPTTopicExtractor:
             "Syllabus text:\n"
             f"{syllabus_text}\n\n"
             "Return 8-20 topics unless the syllabus clearly requires fewer. "
-            "Order them so a student can study each topic after completing its prerequisites."
+            "Output order does not matter — focus entirely on identifying correct prerequisite relationships "
+            "based on the subject matter."
         )
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
         response = self._llm.invoke(messages)
