@@ -124,4 +124,4 @@ class PlannerService:
         return ordered
 
     def _sort_key(self, topic: TopicNode) -> tuple:
-        return (-topic.difficulty, -topic.estimated_minutes, topic.id)
+        return (topic.difficulty, topic.estimated_minutes, topic.id)

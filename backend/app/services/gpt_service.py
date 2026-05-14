@@ -40,16 +40,21 @@ class GPTTopicExtractor:
 
     def _extract_with_gpt(self, syllabus_text: str, course_title: str) -> list[TopicDraft]:
         system_prompt = (
-            "You are an academic planning assistant. Extract the syllabus into an ordered topic list. "
+            "You are an academic planning assistant. Analyse the syllabus and produce an ordered list of topics "
+            "arranged in the optimal learning sequence: foundational concepts first, building progressively to "
+            "advanced material. For each topic identify genuine prerequisite topics — concepts the student must "
+            "understand first — as the 'dependencies' list. Ensure every dependency title exactly matches another "
+            "topic title in your list, and that no topic depends on a topic that appears after it. "
             "Return strict JSON only with shape: "
-            '{"topics":[{"title":"", "description":"", "difficulty":1-5, "estimated_minutes":30-240, "dependencies":["topic title"]}]}. '
-            "Use concise topic titles, realistic dependencies, and no markdown."
+            '{"topics":[{"title":"", "description":"", "difficulty":1-5, "estimated_minutes":30-240, "dependencies":["prerequisite topic title"]}]}. '
+            "Use concise topic titles and no markdown."
         )
         user_prompt = (
             f"Course title: {course_title}\n\n"
             "Syllabus text:\n"
             f"{syllabus_text}\n\n"
-            "Return 8-20 topics unless the syllabus clearly requires fewer."
+            "Return 8-20 topics unless the syllabus clearly requires fewer. "
+            "Order them so a student can study each topic after completing its prerequisites."
         )
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
         response = self._llm.invoke(messages)

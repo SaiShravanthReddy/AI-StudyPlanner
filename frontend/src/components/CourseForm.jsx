@@ -56,7 +56,7 @@ export default function CourseForm({ onSubmit, loading }) {
           <input type="date" name="start_date" value={form.start_date} onChange={handleChange} required />
         </label>
         <label>
-          End Date
+          End Date (Optional)
           <input type="date" name="end_date" value={form.end_date} onChange={handleChange} />
         </label>
       </div>
