@@ -1,16 +1,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
-
-
-class DifficultyLevel(str, Enum):
-    easy = "easy"
-    medium = "medium"
-    hard = "hard"
 
 
 class TopicNode(BaseModel):
@@ -61,7 +54,6 @@ class SyllabusIngestRequest(BaseModel):
     syllabus_text: str = Field(min_length=10)
     start_date: date
     end_date: Optional[date] = None
-    difficulty_level: DifficultyLevel = DifficultyLevel.medium
 
 
 class IngestResponse(BaseModel):

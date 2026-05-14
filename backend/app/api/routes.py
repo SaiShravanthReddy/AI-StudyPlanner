@@ -90,7 +90,7 @@ def ingest_syllabus(
         "syllabus_text": payload.syllabus_text,
         "start_date": payload.start_date,
         "end_date": payload.end_date,
-        "difficulty_level": payload.difficulty_level.value,
+        "difficulty_level": "medium",
         "raw_topics": [],
         "rag_index": None,
         "enriched_topics": [],
@@ -106,7 +106,7 @@ def ingest_syllabus(
             "course_title": payload.course_title,
             "start_date": payload.start_date.isoformat(),
             "end_date": (payload.end_date or (payload.start_date + timedelta(days=settings.default_planning_window_days - 1))).isoformat(),
-            "difficulty_level": payload.difficulty_level.value,
+            "difficulty_level": "medium",
         })
         repository.save_topic_graph(user_id, payload.course_id, graph)
         repository.save_roadmap(user_id, roadmap)
