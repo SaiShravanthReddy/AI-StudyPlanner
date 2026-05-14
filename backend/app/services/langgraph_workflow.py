@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
-from typing import Any, TypedDict
+from typing import Any, Optional, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -36,7 +36,7 @@ class IngestState(TypedDict):
     course_title: str
     syllabus_text: str
     start_date: date
-    end_date: date | None
+    end_date: Optional[date]
     daily_study_minutes: int
 
     # ── intermediate ────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ class ReplanState(TypedDict):
     existing_plan: Any      # StudyPlanResponse | None — used for horizon calculation
 
     # ── intermediate ────────────────────────────────────────────────────────
-    horizon_end: date | None
+    horizon_end: Optional[date]
 
     # ── output ──────────────────────────────────────────────────────────────
     study_plan: Any         # StudyPlanResponse — filled by generate_replan node
