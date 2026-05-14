@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from app.core.config import Settings
-from app.schemas.planner import ResourceSuggestion, RoadmapItem, RoadmapResponse, TopicNode
+from app.schemas.planner import ResourceSuggestion, RoadmapItem, RoadmapResponse, SubtopicItem, TopicNode
 
 _DAILY_BUDGET = {"easy": 60, "medium": 120, "hard": 180}
 _TIME_MULTIPLIER = {"easy": 0.75, "medium": 1.0, "hard": 1.5}
@@ -117,9 +117,14 @@ class PlannerService:
                 if first_dep in topic_by_id:
                     dep_title = topic_by_id[first_dep].title
 
+            subtopic_items = [
+                SubtopicItem(id=f"{topic.id}-sub-{i}", title=s, resources=resources.get(s))
+                for i, s in enumerate(topic.subtopics)
+            ]
             items.append(RoadmapItem(
                 id=topic.id,
                 topic=topic.title,
+                subtopics=subtopic_items,
                 date=current_date,
                 suggested_minutes=suggested,
                 difficulty=difficulty_labels[topic.id],

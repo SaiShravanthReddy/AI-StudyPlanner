@@ -30,11 +30,45 @@ export default function DashboardPage() {
     return Math.round((earned / total) * 100 * 10) / 10;
   };
 
+  const applySubtopicToggle = (items, topicId, subtopicId, newCompleted) =>
+    items.map((item) => {
+      if (item.id !== topicId) return item;
+      const updatedSubs = item.subtopics.map((s) =>
+        s.id === subtopicId ? { ...s, completed: newCompleted } : s
+      );
+      const topicDone = updatedSubs.length > 0 && updatedSubs.every((s) => s.completed);
+      return { ...item, subtopics: updatedSubs, completed: topicDone };
+    });
+
+  const handleSubtopicToggle = async (topicItem, subtopic) => {
+    const newCompleted = !subtopic.completed;
+    setRoadmap((prev) => {
+      const updatedItems = applySubtopicToggle(prev.items, topicItem.id, subtopic.id, newCompleted);
+      return { ...prev, items: updatedItems, completion_score: calcScore(updatedItems) };
+    });
+    try {
+      const { completion_score } = await saveProgress({
+        course_id: roadmap.course_id,
+        topic_id: topicItem.id,
+        subtopic_id: subtopic.id,
+        completed: newCompleted,
+      });
+      setRoadmap((prev) => ({ ...prev, completion_score }));
+    } catch {
+      setRoadmap((prev) => {
+        const revertedItems = applySubtopicToggle(prev.items, topicItem.id, subtopic.id, !newCompleted);
+        return { ...prev, items: revertedItems, completion_score: calcScore(revertedItems) };
+      });
+    }
+  };
+
   const handleToggle = async (item) => {
     const newCompleted = !item.completed;
     setRoadmap((prev) => {
       const updatedItems = prev.items.map((i) =>
-        i.id === item.id ? { ...i, completed: newCompleted } : i
+        i.id === item.id
+          ? { ...i, completed: newCompleted, subtopics: i.subtopics.map((s) => ({ ...s, completed: newCompleted })) }
+          : i
       );
       return { ...prev, items: updatedItems, completion_score: calcScore(updatedItems) };
     });
@@ -48,7 +82,9 @@ export default function DashboardPage() {
     } catch {
       setRoadmap((prev) => {
         const revertedItems = prev.items.map((i) =>
-          i.id === item.id ? { ...i, completed: !newCompleted } : i
+          i.id === item.id
+            ? { ...i, completed: !newCompleted, subtopics: i.subtopics.map((s) => ({ ...s, completed: !newCompleted })) }
+            : i
         );
         return { ...prev, items: revertedItems, completion_score: calcScore(revertedItems) };
       });
@@ -62,7 +98,7 @@ export default function DashboardPage() {
       </header>
       {error ? <div className="error-banner">{error}</div> : null}
       <CourseForm onSubmit={handleIngest} loading={loading} />
-      <RoadmapChecklist roadmap={roadmap} onToggle={handleToggle} />
+      <RoadmapChecklist roadmap={roadmap} onToggle={handleToggle} onSubtopicToggle={handleSubtopicToggle} />
     </div>
   );
 }

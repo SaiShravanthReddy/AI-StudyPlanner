@@ -96,6 +96,7 @@ class TopicGraphService:
         return TopicNode(
             id=f"{slug}-{index + 1}",
             title=draft.title,
+            subtopics=draft.subtopics,
             description=draft.description,
             difficulty=max(1, min(5, draft.difficulty)),
             estimated_minutes=max(15, min(600, draft.estimated_minutes)),

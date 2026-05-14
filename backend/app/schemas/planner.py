@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class TopicNode(BaseModel):
     id: str
     title: str
+    subtopics: list[str] = Field(default_factory=list)
     description: str = ""
     difficulty: int = Field(default=3, ge=1, le=5)
     estimated_minutes: int = Field(default=60, ge=15, le=600)
@@ -36,15 +37,22 @@ class ResourceSuggestion(BaseModel):
     video_url: Optional[str] = None
 
 
+class SubtopicItem(BaseModel):
+    id: str
+    title: str
+    resources: Optional[ResourceSuggestion] = None
+    completed: bool = False
+
+
 class RoadmapItem(BaseModel):
     id: str
     topic: str
-    subtopic: Optional[str] = None
+    subtopics: list[SubtopicItem] = Field(default_factory=list)
     date: date
     suggested_minutes: int
     difficulty: str  # "Low", "Medium", "High"
     priority: str   # "High", "Medium", "Low"
-    dependency: Optional[str] = None  # display title of first prerequisite
+    dependency: Optional[str] = None
     resources: Optional[ResourceSuggestion] = None
     completed: bool = False
 
@@ -71,4 +79,5 @@ class IngestResponse(BaseModel):
 class ProgressUpdateRequest(BaseModel):
     course_id: str
     topic_id: str
+    subtopic_id: Optional[str] = None
     completed: bool

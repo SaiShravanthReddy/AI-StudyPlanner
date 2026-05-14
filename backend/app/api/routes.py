@@ -133,6 +133,21 @@ def ingest_syllabus(
     return IngestResponse(roadmap=roadmap)
 
 
+def _apply_completion(roadmap_items, completed: set):
+    """Hydrate completed flags on items and subtopics; auto-complete topic when all subtopics done."""
+    items = []
+    for item in roadmap_items:
+        updated_subs = [
+            s.model_copy(update={"completed": s.id in completed})
+            for s in item.subtopics
+        ]
+        topic_done = item.id in completed or (
+            bool(updated_subs) and all(s.completed for s in updated_subs)
+        )
+        items.append(item.model_copy(update={"subtopics": updated_subs, "completed": topic_done}))
+    return items
+
+
 @router.post("/progress", response_model=dict)
 def track_progress(
     payload: ProgressUpdateRequest,
@@ -144,9 +159,28 @@ def track_progress(
         repository.save_progress(user_id, payload)
     except RepositoryError:
         raise _storage_error("Unable to save progress.")
+
     completed = repository.get_completed_topic_ids(user_id, payload.course_id)
     roadmap = repository.get_roadmap(user_id, payload.course_id)
-    score = _weighted_score(roadmap.items, set(completed)) if roadmap else 0.0
+    if not roadmap:
+        return {"topic_id": payload.topic_id, "completed": payload.completed, "completion_score": 0.0}
+
+    # auto-complete topic when all its subtopics are now done
+    if payload.subtopic_id and payload.completed:
+        topic_item = next((i for i in roadmap.items if i.id == payload.topic_id), None)
+        if topic_item and topic_item.subtopics:
+            all_sub_ids = {s.id for s in topic_item.subtopics}
+            if all_sub_ids.issubset(completed):
+                auto = ProgressUpdateRequest(
+                    course_id=payload.course_id,
+                    topic_id=payload.topic_id,
+                    completed=True,
+                )
+                repository.save_progress(user_id, auto)
+                completed = repository.get_completed_topic_ids(user_id, payload.course_id)
+
+    items = _apply_completion(roadmap.items, completed)
+    score = _weighted_score(items, completed)
     return {"topic_id": payload.topic_id, "completed": payload.completed, "completion_score": score}
 
 
@@ -164,9 +198,6 @@ def get_plan(
     if roadmap is None:
         raise HTTPException(status_code=404, detail="Roadmap not found.")
     completed = repository.get_completed_topic_ids(user_id, course_id)
-    items = [
-        item.model_copy(update={"completed": item.id in completed})
-        for item in roadmap.items
-    ]
-    score = _weighted_score(items, set(completed))
+    items = _apply_completion(roadmap.items, completed)
+    score = _weighted_score(items, completed)
     return roadmap.model_copy(update={"items": items, "completion_score": score})

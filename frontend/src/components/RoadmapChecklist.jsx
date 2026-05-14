@@ -1,4 +1,4 @@
-export default function RoadmapChecklist({ roadmap, onToggle }) {
+export default function RoadmapChecklist({ roadmap, onToggle, onSubtopicToggle }) {
   if (!roadmap) {
     return (
       <div className="card">
@@ -41,44 +41,93 @@ export default function RoadmapChecklist({ roadmap, onToggle }) {
           </thead>
           <tbody>
             {roadmap.items.map((item) => (
-              <tr key={item.id} className={item.completed ? "row-done" : ""}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={() => onToggle(item)}
-                  />
-                </td>
-                <td>{item.topic}</td>
-                <td>{item.date}</td>
-                <td>{item.suggested_minutes}</td>
-                <td>
-                  <span className={`badge diff-${item.difficulty.toLowerCase()}`}>
-                    {item.difficulty}
-                  </span>
-                </td>
-                <td>
-                  <span className={`badge prio-${item.priority.toLowerCase()}`}>
-                    {item.priority}
-                  </span>
-                </td>
-                <td className="muted">{item.dependency ?? "—"}</td>
-                <td>
-                  {item.resources?.article_url && (
-                    <a href={item.resources.article_url} target="_blank" rel="noreferrer" className="resource-link">
-                      📄 {item.resources.article_title ?? "Article"}
-                    </a>
-                  )}
-                  {item.resources?.video_url && (
-                    <a href={item.resources.video_url} target="_blank" rel="noreferrer" className="resource-link">
-                      ▶ {item.resources.video_title ?? "Video"}
-                    </a>
-                  )}
-                  {!item.resources?.article_url && !item.resources?.video_url && (
-                    <span className="muted">—</span>
-                  )}
-                </td>
-              </tr>
+              <>
+                {/* Topic row */}
+                <tr key={item.id} className={item.completed ? "row-done" : ""}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      onChange={() => onToggle(item)}
+                      title={item.subtopics.length > 0 ? "Auto-completes when all subtopics are done" : undefined}
+                    />
+                  </td>
+                  <td><strong>{item.topic}</strong></td>
+                  <td>{item.date}</td>
+                  <td>{item.suggested_minutes}</td>
+                  <td>
+                    <span className={`badge diff-${item.difficulty.toLowerCase()}`}>
+                      {item.difficulty}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge prio-${item.priority.toLowerCase()}`}>
+                      {item.priority}
+                    </span>
+                  </td>
+                  <td className="muted">{item.dependency ?? "—"}</td>
+                  <td>
+                    {item.resources?.article_url && (
+                      <a href={item.resources.article_url} target="_blank" rel="noreferrer" className="resource-link">
+                        📄 {item.resources.article_title ?? "Article"}
+                      </a>
+                    )}
+                    {item.resources?.video_url && (
+                      <a href={item.resources.video_url} target="_blank" rel="noreferrer" className="resource-link">
+                        ▶ {item.resources.video_title ?? "Video"}
+                      </a>
+                    )}
+                    {!item.resources?.article_url && !item.resources?.video_url && (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+
+                {/* Subtopic rows */}
+                {item.subtopics.map((sub) => {
+                  const subMinutes = Math.round(item.suggested_minutes / item.subtopics.length);
+                  return (
+                    <tr key={sub.id} className={`subtopic-row${sub.completed ? " row-done" : ""}`}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={sub.completed}
+                          onChange={() => onSubtopicToggle(item, sub)}
+                        />
+                      </td>
+                      <td className="subtopic-cell">{sub.title}</td>
+                      <td className="muted">{item.date}</td>
+                      <td className="muted">{subMinutes}</td>
+                      <td>
+                        <span className={`badge diff-${item.difficulty.toLowerCase()}`}>
+                          {item.difficulty}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge prio-${item.priority.toLowerCase()}`}>
+                          {item.priority}
+                        </span>
+                      </td>
+                      <td />
+                      <td>
+                        {sub.resources?.article_url && (
+                          <a href={sub.resources.article_url} target="_blank" rel="noreferrer" className="resource-link">
+                            📄 {sub.resources.article_title ?? "Article"}
+                          </a>
+                        )}
+                        {sub.resources?.video_url && (
+                          <a href={sub.resources.video_url} target="_blank" rel="noreferrer" className="resource-link">
+                            ▶ {sub.resources.video_title ?? "Video"}
+                          </a>
+                        )}
+                        {!sub.resources?.article_url && !sub.resources?.video_url && (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </>
             ))}
           </tbody>
         </table>

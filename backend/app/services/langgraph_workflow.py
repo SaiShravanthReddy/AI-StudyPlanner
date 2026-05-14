@@ -91,8 +91,9 @@ def build_ingest_workflow(
 
     def suggest_resources_node(state: IngestState) -> dict:
         topics = (state.get("topic_graph").topics if state.get("topic_graph") else [])
+        all_titles = [t.title for t in topics] + [s for t in topics for s in t.subtopics]
         resources = resource_service.suggest_resources(
-            topic_titles=[t.title for t in topics],
+            topic_titles=all_titles,
             course_title=state["course_title"],
         )
         return {"resources": resources}

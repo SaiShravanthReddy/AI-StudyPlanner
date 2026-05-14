@@ -173,10 +173,14 @@ class StudyRepository:
 
     def save_progress(self, user_id: str, update: ProgressUpdateRequest) -> None:
         key = (user_id, update.course_id)
+        tracked_id = update.subtopic_id if update.subtopic_id else update.topic_id
         if update.completed:
-            self._memory_completed[key].add(update.topic_id)
+            self._memory_completed[key].add(tracked_id)
         else:
-            self._memory_completed[key].discard(update.topic_id)
+            self._memory_completed[key].discard(tracked_id)
+            # un-completing a subtopic also un-completes the parent topic
+            if update.subtopic_id:
+                self._memory_completed[key].discard(update.topic_id)
         if not self.supabase:
             return
         try:

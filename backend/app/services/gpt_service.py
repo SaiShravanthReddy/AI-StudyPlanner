@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TopicDraft:
     title: str
+    subtopics: list[str]
     description: str
     difficulty: int
     estimated_minutes: int
@@ -40,22 +41,28 @@ class GPTTopicExtractor:
 
     def _extract_with_gpt(self, syllabus_text: str, course_title: str) -> list[TopicDraft]:
         system_prompt = (
-            "You are an academic planning assistant. Extract topics from the syllabus and identify their "
-            "prerequisite relationships using your knowledge of the subject — completely ignore the order "
-            "topics appear in the syllabus text. For each topic, list in 'dependencies' only the topics "
-            "that a student must genuinely understand first before studying this one. "
-            "Return strict JSON only with shape: "
-            '{"topics":[{"title":"", "description":"", "difficulty":1-5, "estimated_minutes":30-240, "dependencies":["prerequisite topic title"]}]}. '
-            "Every dependency must exactly match another topic title in your list. "
-            "Use concise topic titles and no markdown."
+            "You are an academic planning assistant. For each syllabus entry:\n"
+            "1. Write a SHORT 'title' — a clean rephrased name for the overall topic (3-7 words, NOT a copy of the raw syllabus text).\n"
+            "2. Write 'subtopics' — an array of INDIVIDUAL concepts the student must learn. "
+            "   Rules for subtopics:\n"
+            "   - Each subtopic is ONE specific concept or skill, written as a noun phrase (e.g. 'ReLU activation function').\n"
+            "   - NEVER copy the full syllabus entry as a subtopic.\n"
+            "   - If the entry lists multiple things separated by semicolons or commas, each becomes its own subtopic.\n"
+            "   - Add 1-2 prerequisite micro-concepts if they are needed to understand the entry.\n"
+            "   - Aim for 3-6 subtopics per topic.\n"
+            "   Example: 'The vanishing gradient problem; ReLU, Leaky ReLU, Soft-Max' becomes\n"
+            "     title='Activation Functions and Gradient Problems',\n"
+            "     subtopics=['Vanishing gradient problem', 'ReLU activation function', "
+            "'Leaky ReLU activation function', 'Softmax activation function', 'Gradient flow in deep networks'].\n"
+            "3. In 'dependencies', list only OTHER topic titles the student must understand first.\n"
+            "Ignore the input order — use subject-matter knowledge to set prerequisites.\n"
+            "Return strict JSON only:\n"
+            '{"topics":[{"title":"","subtopics":[""],"description":"","difficulty":1-5,"estimated_minutes":30-240,"dependencies":["title"]}]}\n'
+            "No markdown, no extra keys."
         )
         user_prompt = (
-            f"Course title: {course_title}\n\n"
-            "Syllabus text:\n"
-            f"{syllabus_text}\n\n"
-            "Return 8-20 topics unless the syllabus clearly requires fewer. "
-            "Output order does not matter — focus entirely on identifying correct prerequisite relationships "
-            "based on the subject matter."
+            f"Course: {course_title}\n\nSyllabus:\n{syllabus_text}\n\n"
+            "Return 8-20 topics. Output order does not matter."
         )
         messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
         response = self._llm.invoke(messages)
@@ -69,6 +76,7 @@ class GPTTopicExtractor:
             parsed.append(
                 TopicDraft(
                     title=title,
+                    subtopics=[str(s).strip() for s in raw.get("subtopics", []) if str(s).strip()],
                     description=str(raw.get("description", "")).strip(),
                     difficulty=self._clamp_int(raw.get("difficulty", 3), 1, 5, 3),
                     estimated_minutes=self._clamp_int(raw.get("estimated_minutes", 60), 30, 360, 60),
@@ -110,6 +118,7 @@ class GPTTopicExtractor:
             topics.append(
                 TopicDraft(
                     title=self._titleize(line, idx),
+                    subtopics=self._split_subtopics(line),
                     description=line,
                     difficulty=difficulty,
                     estimated_minutes=45 + difficulty * 20,
@@ -121,6 +130,7 @@ class GPTTopicExtractor:
         return [
             TopicDraft(
                 title="Course Foundations",
+                subtopics=["Review course objectives", "Identify key concepts"],
                 description="Initial overview and foundational concepts.",
                 difficulty=2,
                 estimated_minutes=60,
@@ -128,12 +138,23 @@ class GPTTopicExtractor:
             ),
             TopicDraft(
                 title="Core Techniques",
+                subtopics=["Study primary methods", "Solve practice problems"],
                 description="Primary methods and practical problem-solving patterns.",
                 difficulty=3,
                 estimated_minutes=90,
                 dependencies=["Course Foundations"],
             ),
         ]
+
+    def _split_subtopics(self, line: str) -> list[str]:
+        """Split a raw syllabus line like 'A; B, C' into individual concept strings."""
+        parts = []
+        for segment in re.split(r";", line):
+            for chunk in re.split(r",", segment):
+                cleaned = chunk.strip(" -*\t")
+                if len(cleaned) >= 3:
+                    parts.append(cleaned)
+        return parts if parts else [line]
 
     def _titleize(self, raw: str, idx: int) -> str:
         cleaned = re.sub(r"^[0-9\W_]+", "", raw).strip()
