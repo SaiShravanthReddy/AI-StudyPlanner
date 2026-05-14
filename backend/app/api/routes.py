@@ -75,12 +75,20 @@ def get_ingest_workflow(
 _PRIORITY_WEIGHT = {"High": 3, "Medium": 2, "Low": 1}
 
 
-def _weighted_score(items, completed_ids: set) -> float:
-    total_weight = sum(_PRIORITY_WEIGHT.get(item.priority, 1) for item in items)
+def _weighted_score(items) -> float:
+    total_weight = 0.0
+    earned_weight = 0.0
+    for item in items:
+        w = _PRIORITY_WEIGHT.get(item.priority, 1)
+        total_weight += w
+        if item.completed:
+            earned_weight += w
+        elif item.subtopics:
+            done = sum(1 for s in item.subtopics if s.completed)
+            earned_weight += w * done / len(item.subtopics)
     if not total_weight:
         return 0.0
-    earned = sum(_PRIORITY_WEIGHT.get(item.priority, 1) for item in items if item.id in completed_ids)
-    return round(earned / total_weight * 100, 1)
+    return round(earned_weight / total_weight * 100, 1)
 
 
 def _storage_error(detail: str) -> HTTPException:
@@ -180,7 +188,7 @@ def track_progress(
                 completed = repository.get_completed_topic_ids(user_id, payload.course_id)
 
     items = _apply_completion(roadmap.items, completed)
-    score = _weighted_score(items, completed)
+    score = _weighted_score(items)
     return {"topic_id": payload.topic_id, "completed": payload.completed, "completion_score": score}
 
 
@@ -199,5 +207,5 @@ def get_plan(
         raise HTTPException(status_code=404, detail="Roadmap not found.")
     completed = repository.get_completed_topic_ids(user_id, course_id)
     items = _apply_completion(roadmap.items, completed)
-    score = _weighted_score(items, completed)
+    score = _weighted_score(items)
     return roadmap.model_copy(update={"items": items, "completion_score": score})

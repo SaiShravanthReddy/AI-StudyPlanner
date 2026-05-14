@@ -26,8 +26,16 @@ export default function DashboardPage() {
     const weight = { High: 3, Medium: 2, Low: 1 };
     const total = items.reduce((s, i) => s + (weight[i.priority] ?? 1), 0);
     if (!total) return 0;
-    const earned = items.filter((i) => i.completed).reduce((s, i) => s + (weight[i.priority] ?? 1), 0);
-    return Math.round((earned / total) * 100 * 10) / 10;
+    const earned = items.reduce((s, item) => {
+      const w = weight[item.priority] ?? 1;
+      if (item.completed) return s + w;
+      if (item.subtopics && item.subtopics.length > 0) {
+        const done = item.subtopics.filter((sub) => sub.completed).length;
+        return s + w * done / item.subtopics.length;
+      }
+      return s;
+    }, 0);
+    return Math.round(earned / total * 1000) / 10;
   };
 
   const applySubtopicToggle = (items, topicId, subtopicId, newCompleted) =>
