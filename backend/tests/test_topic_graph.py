@@ -24,10 +24,10 @@ def test_topic_graph_limits_similarity_neighbors_per_topic():
         _FakeEmbeddingService(),
     )
     drafts = [
-        TopicDraft("Topic A", "A", 2, 60, []),
-        TopicDraft("Topic B", "B", 2, 60, []),
-        TopicDraft("Topic C", "C", 2, 60, []),
-        TopicDraft("Topic D", "D", 2, 60, []),
+        TopicDraft(title="Topic A", subtopics=[], description="A", difficulty=2, estimated_minutes=60, dependencies=[]),
+        TopicDraft(title="Topic B", subtopics=[], description="B", difficulty=2, estimated_minutes=60, dependencies=[]),
+        TopicDraft(title="Topic C", subtopics=[], description="C", difficulty=2, estimated_minutes=60, dependencies=[]),
+        TopicDraft(title="Topic D", subtopics=[], description="D", difficulty=2, estimated_minutes=60, dependencies=[]),
     ]
 
     graph = service.build_topic_graph("course-1", drafts)

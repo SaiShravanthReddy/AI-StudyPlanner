@@ -36,9 +36,12 @@ def test_roadmap_assigns_correct_priority():
         difficulty_level="medium",
     )
     by_id = {item.id: item for item in roadmap.items}
+    # t1 unlocks t2 and t3 transitively → High
+    # t2 unlocks t3 directly → Medium
+    # t3 unlocks nothing → Low
     assert by_id["t1"].priority == "High"
     assert by_id["t2"].priority == "Medium"
-    assert by_id["t3"].priority == "Medium"
+    assert by_id["t3"].priority == "Low"
 
 
 def test_roadmap_scales_time_with_difficulty():
