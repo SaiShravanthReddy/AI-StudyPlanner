@@ -9,17 +9,50 @@ from typing import Optional
 from app.core.config import Settings
 from app.schemas.planner import RoadmapItem, RoadmapResponse, TopicNode
 
-_DIFFICULTY_LABEL = {1: "Low", 2: "Low", 3: "Medium", 4: "High", 5: "High"}
 _DAILY_BUDGET = {"easy": 60, "medium": 120, "hard": 180}
 _TIME_MULTIPLIER = {"easy": 0.75, "medium": 1.0, "hard": 1.5}
 
 
-def _priority_label(num_deps: int) -> str:
-    if num_deps == 0:
-        return "High"
-    if num_deps == 1:
-        return "Medium"
-    return "Low"
+def _transitive_dependents(topics: list[TopicNode]) -> dict[str, int]:
+    """Count how many topics transitively depend on each topic (full chain, not just direct)."""
+    topic_ids = {t.id for t in topics}
+    reverse: dict[str, list[str]] = defaultdict(list)
+    for t in topics:
+        for dep_id in t.dependencies:
+            if dep_id in topic_ids:
+                reverse[dep_id].append(t.id)
+
+    counts: dict[str, int] = {}
+    for t in topics:
+        seen: set[str] = set()
+        queue = list(reverse[t.id])
+        while queue:
+            curr = queue.pop()
+            if curr in seen:
+                continue
+            seen.add(curr)
+            queue.extend(reverse[curr])
+        counts[t.id] = len(seen)
+    return counts
+
+
+def _percentile_labels(topic_ids: list[str], scores: dict[str, float]) -> dict[str, str]:
+    """Assign Low/Medium/High by splitting topics into thirds by score rank."""
+    if not topic_ids:
+        return {}
+    ordered = sorted(topic_ids, key=lambda tid: (scores[tid], tid))
+    n = len(ordered)
+    low_end = max(1, n // 3)
+    high_start = n - max(1, n // 3)
+    result: dict[str, str] = {}
+    for i, tid in enumerate(ordered):
+        if i < low_end:
+            result[tid] = "Low"
+        elif i >= high_start:
+            result[tid] = "High"
+        else:
+            result[tid] = "Medium"
+    return result
 
 
 class PlannerService:
@@ -44,6 +77,27 @@ class PlannerService:
         topic_by_id = {t.id: t for t in topics}
         ordered = self._toposort(topics, topic_by_id)
 
+        topic_ids = [t.id for t in ordered]
+
+        # difficulty: percentile-rank GPT's 1-5 score within this topic set,
+        # using estimated_minutes as a tiebreaker for topics with equal scores
+        difficulty_scores = {
+            t.id: t.difficulty + t.estimated_minutes / 10000
+            for t in topics
+        }
+        difficulty_labels = _percentile_labels(topic_ids, difficulty_scores)
+
+        # priority: percentile-rank transitive dependents (full chain), with
+        # topological position as tiebreaker so earlier foundational topics
+        # rank higher when the dependency graph is sparse
+        transitive = _transitive_dependents(topics)
+        position_by_id = {tid: i for i, tid in enumerate(topic_ids)}
+        priority_scores = {
+            tid: transitive[tid] * len(topics) + (len(topics) - position_by_id[tid])
+            for tid in topic_ids
+        }
+        priority_labels = _percentile_labels(topic_ids, priority_scores)
+
         current_date = start_date
         day_budget = daily_budget
         items: list[RoadmapItem] = []
@@ -66,8 +120,8 @@ class PlannerService:
                 topic=topic.title,
                 date=current_date,
                 suggested_minutes=suggested,
-                difficulty=_DIFFICULTY_LABEL[topic.difficulty],
-                priority=_priority_label(len(topic.dependencies)),
+                difficulty=difficulty_labels[topic.id],
+                priority=priority_labels[topic.id],
                 dependency=dep_title,
                 completed=False,
             ))
