@@ -66,6 +66,17 @@ def get_ingest_workflow(
     return build_ingest_workflow(topic_extractor, rag_service, topic_graph_service, planner_service)
 
 
+_PRIORITY_WEIGHT = {"High": 3, "Medium": 2, "Low": 1}
+
+
+def _weighted_score(items, completed_ids: set) -> float:
+    total_weight = sum(_PRIORITY_WEIGHT.get(item.priority, 1) for item in items)
+    if not total_weight:
+        return 0.0
+    earned = sum(_PRIORITY_WEIGHT.get(item.priority, 1) for item in items if item.id in completed_ids)
+    return round(earned / total_weight * 100, 1)
+
+
 def _storage_error(detail: str) -> HTTPException:
     return HTTPException(status_code=503, detail=detail)
 
@@ -128,8 +139,7 @@ def track_progress(
         raise _storage_error("Unable to save progress.")
     completed = repository.get_completed_topic_ids(user_id, payload.course_id)
     roadmap = repository.get_roadmap(user_id, payload.course_id)
-    total = len(roadmap.items) if roadmap else 0
-    score = round(len(completed) / total * 100, 1) if total else 0.0
+    score = _weighted_score(roadmap.items, set(completed)) if roadmap else 0.0
     return {"topic_id": payload.topic_id, "completed": payload.completed, "completion_score": score}
 
 
@@ -151,6 +161,5 @@ def get_plan(
         item.model_copy(update={"completed": item.id in completed})
         for item in roadmap.items
     ]
-    total = len(items)
-    score = round(len(completed) / total * 100, 1) if total else 0.0
+    score = _weighted_score(items, set(completed))
     return roadmap.model_copy(update={"items": items, "completion_score": score})
