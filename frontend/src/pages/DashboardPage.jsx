@@ -22,19 +22,36 @@ export default function DashboardPage() {
     }
   };
 
+  const calcScore = (items) => {
+    const weight = { High: 3, Medium: 2, Low: 1 };
+    const total = items.reduce((s, i) => s + (weight[i.priority] ?? 1), 0);
+    if (!total) return 0;
+    const earned = items.filter((i) => i.completed).reduce((s, i) => s + (weight[i.priority] ?? 1), 0);
+    return Math.round((earned / total) * 100 * 10) / 10;
+  };
+
   const handleToggle = async (item) => {
     const newCompleted = !item.completed;
-    setRoadmap((prev) => ({
-      ...prev,
-      items: prev.items.map((i) => (i.id === item.id ? { ...i, completed: newCompleted } : i)),
-    }));
+    setRoadmap((prev) => {
+      const updatedItems = prev.items.map((i) =>
+        i.id === item.id ? { ...i, completed: newCompleted } : i
+      );
+      return { ...prev, items: updatedItems, completion_score: calcScore(updatedItems) };
+    });
     try {
-      await saveProgress({ course_id: roadmap.course_id, topic_id: item.id, completed: newCompleted });
+      const { completion_score } = await saveProgress({
+        course_id: roadmap.course_id,
+        topic_id: item.id,
+        completed: newCompleted,
+      });
+      setRoadmap((prev) => ({ ...prev, completion_score }));
     } catch {
-      setRoadmap((prev) => ({
-        ...prev,
-        items: prev.items.map((i) => (i.id === item.id ? { ...i, completed: !newCompleted } : i)),
-      }));
+      setRoadmap((prev) => {
+        const revertedItems = prev.items.map((i) =>
+          i.id === item.id ? { ...i, completed: !newCompleted } : i
+        );
+        return { ...prev, items: revertedItems, completion_score: calcScore(revertedItems) };
+      });
     }
   };
 
