@@ -10,7 +10,7 @@ export default function RoadmapChecklist({ roadmap, onToggle }) {
 
   const total = roadmap.items.length;
   const done = roadmap.items.filter((i) => i.completed).length;
-  const score = total > 0 ? Math.round((done / total) * 100) : 0;
+  const score = roadmap.completion_score ?? 0;
 
   return (
     <div className="card">
